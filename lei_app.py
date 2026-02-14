@@ -848,6 +848,9 @@ class LeiApp(tk.Tk):
                  f"Cache: {len(self._cache)} entities"
         )
 
+        # Enable/disable confirm button based on whether REVIEWED rows exist
+        self._btn_confirm.config(state="normal" if reviewed else "disabled")
+
     # ---------------------------------------------------------- Export CSV
     def _export_csv(self) -> None:
         if not self._result_rows:
