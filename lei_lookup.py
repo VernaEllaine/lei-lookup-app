@@ -125,6 +125,43 @@ def _retry_after(resp: requests.Response, attempt: int) -> float:
     return min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_MAX)
 
 
+# Common legal-form suffixes to strip when searching
+_LEGAL_SUFFIXES = re.compile(
+    r"\b("
+    r"s\.?p\.?a\.?|spa|s\.?a\.?|sa|s\.?e\.?|se|"
+    r"a\.?g\.?|ag|aktiengesellschaft|"
+    r"gmbh|g\.?m\.?b\.?h\.?|gesellschaft mit beschr[aä]nkter haftung|"
+    r"s\.?a\.?s\.?|sas|s\.?a\.?c\.?a\.?|saca|"
+    r"b\.?v\.?|bv|n\.?v\.?|nv|plc|s\.?a\.?u\.?|sau|"
+    r"s\.?r\.?l\.?|srl|ltd|limited|inc|incorporated|corp|corporation|"
+    r"kgaa|co\.?\s*kgaa"
+    r")\s*$",
+    re.IGNORECASE,
+)
+
+# Abbreviation expansions for confidence scoring
+_ABBREV_MAP = {
+    "spa": "s.p.a.",
+    "ag": "aktiengesellschaft",
+    "gmbh": "gesellschaft mit beschränkter haftung",
+    "sa": "s.a.",
+    "se": "s.e.",
+    "sas": "s.a.s.",
+    "bv": "b.v.",
+    "nv": "n.v.",
+    "srl": "s.r.l.",
+    "sau": "s.a.u.",
+    "saca": "s.a.c.a.",
+    "kgaa": "kommanditgesellschaft auf aktien",
+}
+
+
+def _strip_legal_suffix(name: str) -> str:
+    """Remove trailing legal-form suffix from a company name."""
+    cleaned = _LEGAL_SUFFIXES.sub("", name).strip().rstrip(",-/")
+    return cleaned.strip() or name
+
+
 def lookup_lei(company_name: str, max_results: int = 10) -> dict:
     """Search GLEIF for LEI records matching a company name.
 
@@ -148,41 +185,44 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
     Raises:
         GleifAPIError: On unrecoverable API errors after exhausting retries.
     """
-    payload = _api_get(
-        f"{GLEIF_BASE}/lei-records",
-        params={
-            "filter[entity.legalName]": company_name,
-            "page[size]": str(max_results),
-        },
-    )
+    def _search(query: str) -> list[dict]:
+        payload = _api_get(
+            f"{GLEIF_BASE}/lei-records",
+            params={
+                "filter[entity.legalName]": query,
+                "page[size]": str(max_results),
+            },
+        )
+        records = payload.get("data", [])
+        hits = []
+        for rec in records:
+            attrs = rec.get("attributes", {})
+            entity = attrs.get("entity", {})
+            registration = attrs.get("registration", {})
+            legal_name = entity.get("legalName", {}).get("name", "")
+            confidence = _compute_confidence(company_name, legal_name)
+            hits.append({
+                "lei": attrs.get("lei", ""),
+                "legal_name": legal_name,
+                "jurisdiction": entity.get("jurisdiction", ""),
+                "status": entity.get("status", ""),
+                "registration_status": registration.get("status", ""),
+                "confidence": confidence,
+            })
+        return [
+            r for r in hits
+            if r["status"] == "ACTIVE" or r["registration_status"] == "ISSUED"
+        ]
 
-    records = payload.get("data", [])
-    total = payload.get("meta", {}).get("pagination", {}).get("total", len(records))
+    results = _search(company_name)
 
-    results = []
-    for rec in records:
-        attrs = rec.get("attributes", {})
-        entity = attrs.get("entity", {})
-        registration = attrs.get("registration", {})
-        legal_name = entity.get("legalName", {}).get("name", "")
+    # If no results, retry with legal suffix stripped (e.g. "Enel SPA" → "Enel")
+    if not results:
+        stripped = _strip_legal_suffix(company_name)
+        if stripped.lower() != company_name.strip().lower():
+            results = _search(stripped)
 
-        # Confidence indicator: compare query against the legal name.
-        confidence = _compute_confidence(company_name, legal_name)
-
-        results.append({
-            "lei": attrs.get("lei", ""),
-            "legal_name": legal_name,
-            "jurisdiction": entity.get("jurisdiction", ""),
-            "status": entity.get("status", ""),
-            "registration_status": registration.get("status", ""),
-            "confidence": confidence,
-        })
-
-    # Only accept records that are Active or Issued.
-    results = [
-        r for r in results
-        if r["status"] == "ACTIVE" or r["registration_status"] == "ISSUED"
-    ]
+    total = len(results)
 
     # Sort by confidence so best matches appear first.
     confidence_order = {"high": 0, "medium": 1, "low": 2}
@@ -204,22 +244,45 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
     }
 
 
+def _expand_abbrevs(text: str) -> str:
+    """Expand known legal-form abbreviations in *text* for comparison."""
+    words = text.split()
+    expanded = []
+    for w in words:
+        expanded.append(_ABBREV_MAP.get(w, w))
+    return " ".join(expanded)
+
+
 def _compute_confidence(query: str, legal_name: str) -> str:
     """Rate match confidence based on how closely the name matches the query.
+
+    Expands common abbreviations (SPA→S.P.A., AG→Aktiengesellschaft, etc.)
+    before comparing so that "Enel SPA" scores high against "ENEL - S.P.A.".
 
     Returns "high", "medium", or "low".
     """
     q = re.sub(r"[^\w\s]", "", query.strip().lower())
     name = re.sub(r"[^\w\s]", "", legal_name.strip().lower())
 
-    if q == name:
+    # Also compare with abbreviations expanded
+    q_exp = re.sub(r"[^\w\s]", "", _expand_abbrevs(q))
+    name_exp = re.sub(r"[^\w\s]", "", _expand_abbrevs(name))
+
+    # Compare both original and expanded forms
+    q_core = _strip_legal_suffix(q).strip()
+    name_core = _strip_legal_suffix(name).strip()
+
+    if q == name or q_exp == name_exp:
+        return "high"
+    # Core names match (ignoring legal suffix)
+    if q_core and name_core and q_core == name_core:
         return "high"
     # One contains the other fully
-    if q in name or name in q:
+    if q in name or name in q or q_core in name_core or name_core in q_core:
         return "medium"
-    # Check token overlap
-    q_tokens = set(q.split())
-    name_tokens = set(name.split())
+    # Check token overlap (using expanded forms)
+    q_tokens = set(q_exp.split())
+    name_tokens = set(name_exp.split())
     if not q_tokens:
         return "low"
     overlap = len(q_tokens & name_tokens) / len(q_tokens)

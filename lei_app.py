@@ -182,6 +182,11 @@ class LeiApp(tk.Tk):
         )
         self._btn_confirm.pack(side="left", padx=4)
 
+        self._btn_confirm_all = ttk.Button(
+            frm_buttons, text="Confirm All", command=self._confirm_all_reviewed, state="disabled"
+        )
+        self._btn_confirm_all.pack(side="left", padx=4)
+
         self._btn_clear_cache = ttk.Button(
             frm_buttons, text="Clear Cache", command=self._clear_cache
         )
@@ -643,6 +648,34 @@ class LeiApp(tk.Tk):
             text=f"Confirmation done: {confirmed} confirmed, {rejected} rejected."
         )
 
+    def _confirm_all_reviewed(self) -> None:
+        """Bulk-confirm all REVIEWED rows as CONFIRMED in one step."""
+        children = self._tree.get_children()
+        reviewed_items = [c for c in children if self._tree.set(c, "match_status") == "REVIEWED"]
+
+        if not reviewed_items:
+            messagebox.showinfo("Nothing to confirm", "No reviewed rows to confirm.")
+            return
+
+        if not messagebox.askyesno(
+            "Confirm All Reviewed",
+            f"Mark all {len(reviewed_items)} reviewed row{'s' if len(reviewed_items) != 1 else ''} as confirmed?",
+        ):
+            return
+
+        for item in reviewed_items:
+            row_index = self._item_to_row[item]
+            self._tree.set(item, "match_status", "CONFIRMED")
+            self._tree.item(item, tags=(TAG_CONFIRMED,))
+            self._result_rows[row_index]["lei_match_status"] = "CONFIRMED"
+            entity = self._tree.set(item, "entity_name")
+            if entity:
+                self._cache_row(entity, self._result_rows[row_index])
+
+        self._sort_results()
+        self._refresh_summary()
+        self._lbl_status.config(text=f"All {len(reviewed_items)} reviewed rows confirmed.")
+
     # -------------------------------------------------------- Inline edit
     # Editable columns (treeview column ids)
     _EDITABLE_COLS = {"lei", "legal_name", "jurisdiction", "status", "confidence"}
@@ -848,8 +881,9 @@ class LeiApp(tk.Tk):
                  f"Cache: {len(self._cache)} entities"
         )
 
-        # Enable/disable confirm button based on whether REVIEWED rows exist
+        # Enable/disable confirm buttons based on whether REVIEWED rows exist
         self._btn_confirm.config(state="normal" if reviewed else "disabled")
+        self._btn_confirm_all.config(state="normal" if reviewed else "disabled")
 
     # ---------------------------------------------------------- Export CSV
     def _export_csv(self) -> None:
