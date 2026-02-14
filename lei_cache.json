@@ -921,17 +921,17 @@
   },
   "lorca telecom bondco": {
     "lei": "9598004HFBAS82YM7X35",
-    "legal_name": "CONSTELLIUM SE",
-    "jurisdiction": "FR",
-    "status": "ACTIVE",
+    "legal_name": "LORCA TELECOM BONDCO SA",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
     "confidence": "high",
     "match_status": "REVIEWED"
   },
   "enel spa": {
     "lei": "WOCMU6HCI0OJWNPRZS33",
-    "legal_name": "Vier Gas Transport GmbH",
-    "jurisdiction": "",
-    "status": "",
+    "legal_name": "ENEL - SPA",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
     "confidence": "",
     "match_status": "REVIEWED"
   }
