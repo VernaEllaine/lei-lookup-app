@@ -600,9 +600,6 @@ class LeiApp(tk.Tk):
         if self._edit_entry is entry:
             self._edit_entry = None
 
-        if new_value == old_value:
-            return
-
         # Find the row index in _result_rows
         children = self._tree.get_children()
         try:
@@ -617,8 +614,8 @@ class LeiApp(tk.Tk):
         key = self._COL_TO_KEY[col_name]
         self._result_rows[row_index][key] = new_value
 
-        if col_name == "lei":
-            # Validate via GLEIF API in background
+        if col_name == "lei" and new_value != old_value:
+            # New LEI entered: validate via GLEIF API in background
             self._lbl_status.config(text=f"Validating LEI: {new_value}…")
             threading.Thread(
                 target=self._validate_lei,
@@ -626,10 +623,10 @@ class LeiApp(tk.Tk):
                 daemon=True,
             ).start()
         else:
-            # Non-LEI edit: mark as REVIEWED immediately
+            # Same LEI confirmed or non-LEI edit: mark as REVIEWED immediately
             self._tree.set(item, "match_status", "REVIEWED")
             self._result_rows[row_index]["lei_match_status"] = "REVIEWED"
-            self._tree.item(item, tags=(TAG_AUTO,))
+            self._tree.item(item, tags=(TAG_REVIEWED,))
 
             # Cache the reviewed row
             entity_name = self._tree.set(item, "entity_name")
@@ -677,7 +674,7 @@ class LeiApp(tk.Tk):
         self._tree.set(item, "jurisdiction", record["jurisdiction"])
         self._tree.set(item, "status", record["status"])
         self._tree.set(item, "match_status", "REVIEWED")
-        self._tree.item(item, tags=(TAG_AUTO,))
+        self._tree.item(item, tags=(TAG_REVIEWED,))
 
         self._lbl_status.config(text="LEI validated successfully.")
 
