@@ -59,10 +59,16 @@ class LeiApp(tk.Tk):
         self._result_rows: list[dict] = []   # rows with LEI fields added
         self._running = False
         self._cache: dict[str, dict] = {}
+        self._cache_validating = False
         self._load_cache()
 
         # Widgets -------------------------------------------------------------
         self._build_ui()
+
+        # Validate cached LEIs in background on startup
+        if self._cache:
+            self._cache_validating = True
+            threading.Thread(target=self._validate_cache, daemon=True).start()
 
     # ------------------------------------------------------------------ UI --
     def _build_ui(self) -> None:
@@ -201,6 +207,64 @@ class LeiApp(tk.Tk):
         }
         self._save_cache()
 
+    def _validate_cache(self) -> None:
+        """Background thread: validate all cached LEIs against GLEIF on startup."""
+        import time
+
+        entries = [
+            (key, entry)
+            for key, entry in self._cache.items()
+            if entry.get("lei")
+        ]
+        total = len(entries)
+        if total == 0:
+            self._cache_validating = False
+            return
+
+        removed = 0
+        for i, (key, entry) in enumerate(entries):
+            if not self._cache_validating:
+                # Cancelled by a user lookup
+                break
+
+            self.after(0, self._lbl_status.config,
+                       {"text": f"Validating cache: {i + 1} / {total}\u2026"})
+
+            lei_code = entry["lei"]
+            try:
+                resp = requests.get(
+                    f"https://api.gleif.org/api/v1/lei-records/{lei_code}",
+                    timeout=15,
+                )
+                if resp.status_code == 200:
+                    reg = resp.json().get("data", {}).get("attributes", {}).get("registration", {})
+                    if reg.get("status") == "ACTIVE":
+                        # Still active, keep it
+                        if i < total - 1:
+                            time.sleep(0.5)
+                        continue
+                # Non-active or non-200 → remove
+                self._cache.pop(key, None)
+                removed += 1
+            except Exception:
+                # Network error → remove to be safe
+                self._cache.pop(key, None)
+                removed += 1
+
+            if i < total - 1:
+                time.sleep(0.5)
+
+        if self._cache_validating:
+            self._save_cache()
+            if removed > 0:
+                msg = f"Cache validated: {removed} inactive entr{'y' if removed == 1 else 'ies'} removed."
+            else:
+                msg = "Cache validated: all entries active."
+            self.after(0, self._lbl_status.config, {"text": msg})
+            self.after(0, self._refresh_summary)
+
+        self._cache_validating = False
+
     def _clear_cache(self) -> None:
         if not messagebox.askyesno("Clear Cache",
                                    f"Delete all {len(self._cache)} cached entities?"):
@@ -246,6 +310,9 @@ class LeiApp(tk.Tk):
     def _run_lookup(self) -> None:
         if self._running:
             return
+        # Cancel any in-progress cache validation
+        if self._cache_validating:
+            self._cache_validating = False
         if not self._csv_path:
             messagebox.showwarning("No file", "Please select a CSV file first.")
             return
