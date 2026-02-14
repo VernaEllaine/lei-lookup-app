@@ -6,6 +6,8 @@ live progress bar, viewing colour-coded results, and exporting to CSV.
 """
 
 import csv
+import json
+import os
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -39,6 +41,8 @@ LEI_FIELDS = [
     "lei_candidates",
 ]
 
+_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lei_cache.json")
+
 
 class LeiApp(tk.Tk):
     """Main application window."""
@@ -54,6 +58,8 @@ class LeiApp(tk.Tk):
         self._rows: list[dict] = []          # original CSV rows
         self._result_rows: list[dict] = []   # rows with LEI fields added
         self._running = False
+        self._cache: dict[str, dict] = {}
+        self._load_cache()
 
         # Widgets -------------------------------------------------------------
         self._build_ui()
@@ -152,11 +158,60 @@ class LeiApp(tk.Tk):
         self._lbl_summary = ttk.Label(self, text="", anchor="w")
         self._lbl_summary.pack(fill="x", **pad)
 
-        # --- Export button ---------------------------------------------------
+        # --- Export + Clear Cache buttons ------------------------------------
+        frm_buttons = ttk.Frame(self)
+        frm_buttons.pack(pady=(0, 8))
+
         self._btn_export = ttk.Button(
-            self, text="Export CSV", command=self._export_csv, state="disabled"
+            frm_buttons, text="Export CSV", command=self._export_csv, state="disabled"
         )
-        self._btn_export.pack(padx=8, pady=(0, 8))
+        self._btn_export.pack(side="left", padx=4)
+
+        self._btn_clear_cache = ttk.Button(
+            frm_buttons, text="Clear Cache", command=self._clear_cache
+        )
+        self._btn_clear_cache.pack(side="left", padx=4)
+
+    # --------------------------------------------------------- Cache helpers
+    def _load_cache(self) -> None:
+        try:
+            with open(_CACHE_PATH, encoding="utf-8") as f:
+                self._cache = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            self._cache = {}
+
+    def _save_cache(self) -> None:
+        try:
+            with open(_CACHE_PATH, "w", encoding="utf-8") as f:
+                json.dump(self._cache, f, indent=2)
+        except OSError:
+            pass
+
+    def _cache_row(self, company: str, row_data: dict) -> None:
+        key = company.strip().lower()
+        if not key:
+            return
+        self._cache[key] = {
+            "lei": row_data.get("lei", ""),
+            "legal_name": row_data.get("lei_legal_name", ""),
+            "jurisdiction": row_data.get("lei_jurisdiction", ""),
+            "status": row_data.get("lei_status", ""),
+            "confidence": row_data.get("lei_confidence", ""),
+            "match_status": row_data.get("lei_match_status", ""),
+        }
+        self._save_cache()
+
+    def _clear_cache(self) -> None:
+        if not messagebox.askyesno("Clear Cache",
+                                   f"Delete all {len(self._cache)} cached entities?"):
+            return
+        self._cache.clear()
+        try:
+            os.remove(_CACHE_PATH)
+        except FileNotFoundError:
+            pass
+        self._refresh_summary()
+        self._lbl_status.config(text="Cache cleared.")
 
     # ----------------------------------------------------------- File browse
     def _browse(self) -> None:
@@ -227,15 +282,27 @@ class LeiApp(tk.Tk):
 
     # ----- Background worker (runs in its own thread) -----
     def _worker(self, col: str) -> None:
-        delay = 0.5
         for i, row in enumerate(self._rows):
             company = row.get(col, "").strip()
             out = dict(row)
+            use_delay = True
 
             if not company:
                 out.update({h: "" for h in LEI_FIELDS})
                 out["lei_match_status"] = "NO MATCH"
                 match_status = "NO MATCH"
+                use_delay = False
+            elif company.strip().lower() in self._cache:
+                cached = self._cache[company.strip().lower()]
+                out["lei"] = cached["lei"]
+                out["lei_legal_name"] = cached["legal_name"]
+                out["lei_jurisdiction"] = cached["jurisdiction"]
+                out["lei_status"] = cached["status"]
+                out["lei_confidence"] = cached["confidence"]
+                out["lei_match_status"] = cached["match_status"]
+                out["lei_candidates"] = ""
+                match_status = cached["match_status"]
+                use_delay = False
             else:
                 try:
                     result = lookup_lei(company)
@@ -286,8 +353,8 @@ class LeiApp(tk.Tk):
                 self._pending_updates.append(update)
 
             import time
-            if delay and i < len(self._rows) - 1:
-                time.sleep(delay)
+            if use_delay and i < len(self._rows) - 1:
+                time.sleep(0.5)
 
         with self._lock:
             self._worker_done = True
@@ -327,8 +394,12 @@ class LeiApp(tk.Tk):
         self._lbl_count.config(text=f"{idx + 1} / {total}")
         self._lbl_status.config(text=f"Looking up: {u['company']}" if u["company"] else "Skipped empty row")
 
+        # Cache AUTO-MATCHED rows
+        if ms == "AUTO-MATCHED" and u["company"]:
+            self._cache_row(u["company"], row)
+
         # Treeview row
-        if ms == "AUTO-MATCHED":
+        if ms in ("AUTO-MATCHED", "REVIEWED"):
             tag = TAG_AUTO
         elif ms == "REVIEW NEEDED":
             tag = TAG_REVIEW
@@ -463,7 +534,13 @@ class LeiApp(tk.Tk):
             # Non-LEI edit: mark as REVIEWED immediately
             self._tree.set(item, "match_status", "REVIEWED")
             self._result_rows[row_index]["lei_match_status"] = "REVIEWED"
-            self._tree.item(item, tags=(TAG_REVIEWED,))
+            self._tree.item(item, tags=(TAG_AUTO,))
+
+            # Cache the reviewed row
+            entity_name = self._tree.set(item, "entity_name")
+            if entity_name:
+                self._cache_row(entity_name, self._result_rows[row_index])
+
             self._refresh_summary()
 
     def _validate_lei(self, item: str, lei_code: str, old_value: str, row_index: int) -> None:
@@ -505,9 +582,15 @@ class LeiApp(tk.Tk):
         self._tree.set(item, "jurisdiction", record["jurisdiction"])
         self._tree.set(item, "status", record["status"])
         self._tree.set(item, "match_status", "REVIEWED")
-        self._tree.item(item, tags=(TAG_REVIEWED,))
+        self._tree.item(item, tags=(TAG_AUTO,))
 
         self._lbl_status.config(text="LEI validated successfully.")
+
+        # Cache the reviewed row
+        entity_name = self._tree.set(item, "entity_name")
+        if entity_name:
+            self._cache_row(entity_name, row)
+
         self._refresh_summary()
 
     def _revert_lei(self, item: str, row_index: int, old_value: str, message: str) -> None:
@@ -527,7 +610,8 @@ class LeiApp(tk.Tk):
 
         self._lbl_summary.config(
             text=f"Summary:  {auto} Auto-matched,  {review} Review needed,  "
-                 f"{reviewed} Reviewed,  {none_} No match,  {errs} Errors"
+                 f"{reviewed} Reviewed,  {none_} No match,  {errs} Errors  |  "
+                 f"Cache: {len(self._cache)} entities"
         )
 
     # ---------------------------------------------------------- Export CSV
