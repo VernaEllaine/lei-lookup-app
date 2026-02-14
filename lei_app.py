@@ -177,11 +177,6 @@ class LeiApp(tk.Tk):
         )
         self._btn_export.pack(side="left", padx=4)
 
-        self._btn_confirm = ttk.Button(
-            frm_buttons, text="Confirm Reviewed", command=self._confirm_reviewed, state="disabled"
-        )
-        self._btn_confirm.pack(side="left", padx=4)
-
         self._btn_confirm_all = ttk.Button(
             frm_buttons, text="Confirm All", command=self._confirm_all_reviewed, state="disabled"
         )
@@ -580,74 +575,6 @@ class LeiApp(tk.Tk):
         self._refresh_summary()
         if self._result_rows:
             self._btn_export.config(state="normal")
-        # Enable confirm button if there are REVIEWED rows
-        has_reviewed = any(r.get("lei_match_status") == "REVIEWED" for r in self._result_rows)
-        self._btn_confirm.config(state="normal" if has_reviewed else "disabled")
-
-    # ------------------------------------------------------- Confirm reviewed
-    def _confirm_reviewed(self) -> None:
-        """Walk through all REVIEWED rows and ask the user to confirm each."""
-        children = self._tree.get_children()
-        reviewed_items = []
-        for child in children:
-            if self._tree.set(child, "match_status") == "REVIEWED":
-                reviewed_items.append(child)
-
-        if not reviewed_items:
-            messagebox.showinfo("Nothing to confirm", "No reviewed rows to confirm.")
-            return
-
-        confirmed = 0
-        rejected = 0
-        for item in reviewed_items:
-            entity = self._tree.set(item, "entity_name")
-            lei = self._tree.set(item, "lei")
-            legal = self._tree.set(item, "legal_name")
-            jurisdiction = self._tree.set(item, "jurisdiction")
-
-            self._tree.see(item)
-            self._tree.selection_set(item)
-
-            answer = messagebox.askyesnocancel(
-                "Confirm Reviewed Match",
-                f"Entity name:  {entity}\n"
-                f"LEI:  {lei}\n"
-                f"GLEIF legal name:  {legal}\n"
-                f"Jurisdiction:  {jurisdiction}\n\n"
-                f"Is this match final?",
-            )
-
-            if answer is None:
-                # Cancel — stop the workflow
-                break
-            elif answer:
-                # Yes — mark as CONFIRMED
-                row_index = self._item_to_row[item]
-                self._tree.set(item, "match_status", "CONFIRMED")
-                self._tree.item(item, tags=(TAG_CONFIRMED,))
-                self._result_rows[row_index]["lei_match_status"] = "CONFIRMED"
-                if entity:
-                    self._cache_row(entity, self._result_rows[row_index])
-                confirmed += 1
-            else:
-                # No — revert to REVIEW NEEDED so user can re-edit
-                row_index = self._item_to_row[item]
-                self._tree.set(item, "match_status", "REVIEW NEEDED")
-                self._tree.item(item, tags=(TAG_REVIEW,))
-                self._result_rows[row_index]["lei_match_status"] = "REVIEW NEEDED"
-                rejected += 1
-
-        self._tree.selection_remove(*self._tree.selection())
-        self._sort_results()
-        self._refresh_summary()
-
-        has_reviewed = any(r.get("lei_match_status") == "REVIEWED" for r in self._result_rows)
-        self._btn_confirm.config(state="normal" if has_reviewed else "disabled")
-
-        self._lbl_status.config(
-            text=f"Confirmation done: {confirmed} confirmed, {rejected} rejected."
-        )
-
     def _confirm_all_reviewed(self) -> None:
         """Bulk-confirm all REVIEWED rows as CONFIRMED in one step."""
         children = self._tree.get_children()
@@ -881,8 +808,7 @@ class LeiApp(tk.Tk):
                  f"Cache: {len(self._cache)} entities"
         )
 
-        # Enable/disable confirm buttons based on whether REVIEWED rows exist
-        self._btn_confirm.config(state="normal" if reviewed else "disabled")
+        # Enable/disable confirm button based on whether REVIEWED rows exist
         self._btn_confirm_all.config(state="normal" if reviewed else "disabled")
 
     # ---------------------------------------------------------- Export CSV
