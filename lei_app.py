@@ -532,7 +532,7 @@ class LeiApp(tk.Tk):
             return
         col_name = cols[col_index]
 
-        if col_name not in self._EDITABLE_COLS:
+        if col_name not in self._EDITABLE_COLS and col_name != "entity_name":
             return
 
         # Destroy any existing edit widget
@@ -555,9 +555,15 @@ class LeiApp(tk.Tk):
         entry.focus_set()
         self._edit_entry = entry
 
-        entry.bind("<Return>", lambda e: self._commit_edit(item, col_name, entry, old_value))
-        entry.bind("<FocusOut>", lambda e: self._commit_edit(item, col_name, entry, old_value))
-        entry.bind("<Escape>", lambda e: self._cancel_edit(entry))
+        if col_name == "entity_name":
+            # Read-only: allow copy but not edit
+            entry.configure(state="readonly")
+            entry.bind("<FocusOut>", lambda e: self._cancel_edit(entry))
+            entry.bind("<Escape>", lambda e: self._cancel_edit(entry))
+        else:
+            entry.bind("<Return>", lambda e: self._commit_edit(item, col_name, entry, old_value))
+            entry.bind("<FocusOut>", lambda e: self._commit_edit(item, col_name, entry, old_value))
+            entry.bind("<Escape>", lambda e: self._cancel_edit(entry))
 
     def _cancel_edit(self, entry: ttk.Entry) -> None:
         entry.destroy()
