@@ -210,7 +210,7 @@ class LeiApp(tk.Tk):
 
     def _validate_cache(self) -> None:
         """Background thread: validate all cached LEIs against GLEIF on startup."""
-        import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
         entries = [
             (key, entry)
@@ -222,40 +222,62 @@ class LeiApp(tk.Tk):
             self._cache_validating = False
             return
 
+        # Build batches of up to 20 LEIs for the bulk filter endpoint
+        BATCH_SIZE = 20
+        batches: list[list[tuple[str, dict]]] = []
+        for i in range(0, total, BATCH_SIZE):
+            batches.append(entries[i : i + BATCH_SIZE])
+
         removed = 0
-        for i, (key, entry) in enumerate(entries):
-            if not self._cache_validating:
-                # Cancelled by a user lookup
-                break
+        validated = 0
 
-            self.after(0, self._lbl_status.config,
-                       {"text": f"Validating cache: {i + 1} / {total}\u2026"})
-
-            lei_code = entry["lei"]
-            try:
-                resp = requests.get(
-                    f"https://api.gleif.org/api/v1/lei-records/{lei_code}",
-                    timeout=15,
-                )
-                if resp.status_code == 200:
-                    attrs = resp.json().get("data", {}).get("attributes", {})
+        def _fetch_batch(batch: list[tuple[str, dict]]) -> set[str]:
+            """Return the set of LEIs from *batch* that are still active/issued."""
+            lei_codes = [entry["lei"] for _, entry in batch]
+            lei_filter = ",".join(lei_codes)
+            resp = requests.get(
+                "https://api.gleif.org/api/v1/lei-records",
+                params={
+                    "filter[lei]": lei_filter,
+                    "page[size]": str(BATCH_SIZE),
+                },
+                timeout=30,
+            )
+            active: set[str] = set()
+            if resp.status_code == 200:
+                for record in resp.json().get("data", []):
+                    attrs = record.get("attributes", {})
                     entity_status = attrs.get("entity", {}).get("status", "")
                     reg_status = attrs.get("registration", {}).get("status", "")
                     if entity_status == "ACTIVE" or reg_status == "ISSUED":
-                        # Still active or issued, keep it
-                        if i < total - 1:
-                            time.sleep(0.5)
-                        continue
-                # Not active or issued, or non-200 → remove
-                self._cache.pop(key, None)
-                removed += 1
-            except Exception:
-                # Network error → remove to be safe
-                self._cache.pop(key, None)
-                removed += 1
+                        active.add(record.get("id", ""))
+            return active
 
-            if i < total - 1:
-                time.sleep(0.5)
+        MAX_WORKERS = 5
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            future_to_batch = {
+                pool.submit(_fetch_batch, batch): batch
+                for batch in batches
+            }
+            for future in as_completed(future_to_batch):
+                if not self._cache_validating:
+                    break
+
+                batch = future_to_batch[future]
+                try:
+                    active_leis = future.result()
+                    for key, entry in batch:
+                        if entry["lei"] not in active_leis:
+                            self._cache.pop(key, None)
+                            removed += 1
+                except Exception:
+                    for key, _ in batch:
+                        self._cache.pop(key, None)
+                        removed += 1
+
+                validated += len(batch)
+                self.after(0, self._lbl_status.config,
+                           {"text": f"Validating cache: {validated} / {total}\u2026"})
 
         if self._cache_validating:
             self._save_cache()
