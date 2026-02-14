@@ -593,9 +593,9 @@
   },
   "air france-klm": {
     "lei": "969500AQW31GYO8JZD66",
-    "legal_name": "",
-    "jurisdiction": "",
-    "status": "",
+    "legal_name": "AIR FRANCE - KLM",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
     "confidence": "",
     "match_status": "REVIEWED"
   },
@@ -609,9 +609,9 @@
   },
   "nidda healthcare holding": {
     "lei": "549300Q89C4WAO6L0L19",
-    "legal_name": "",
-    "jurisdiction": "",
-    "status": "",
+    "legal_name": "Nidda Healthcare Holding GmbH",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
     "confidence": "",
     "match_status": "REVIEWED"
   },
@@ -633,9 +633,9 @@
   },
   "autoroutes du sud de la": {
     "lei": "213800U12KWYZEECZ934",
-    "legal_name": "",
-    "jurisdiction": "",
-    "status": "",
+    "legal_name": "AUTOROUTES DU SUD DE LA FRANCE",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
     "confidence": "",
     "match_status": "REVIEWED"
   },
@@ -913,9 +913,9 @@
   },
   "international consolidated airlines group": {
     "lei": "959800TZHQRUSH1ESL13",
-    "legal_name": "",
-    "jurisdiction": "",
-    "status": "",
+    "legal_name": "INTERNATIONAL CONSOLIDATED AIRLINES GROUP, S.A.",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
     "confidence": "",
     "match_status": "REVIEWED"
   },
