@@ -13,6 +13,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import requests
+from rapidfuzz import fuzz, process
 
 from lei_lookup import (
     GleifAPIError,
@@ -267,6 +268,23 @@ class LeiApp(tk.Tk):
 
         self._cache_validating = False
 
+    def _fuzzy_cache_lookup(self, company: str) -> dict | None:
+        """Return cached entry for *company*, using fuzzy matching if needed."""
+        key = company.strip().lower()
+        if not key:
+            return None
+        # Exact match first
+        if key in self._cache:
+            return self._cache[key]
+        # Fuzzy match against all cache keys
+        if not self._cache:
+            return None
+        result = process.extractOne(key, self._cache.keys(), score_cutoff=85)
+        if result is not None:
+            matched_key, score, _ = result
+            return self._cache[matched_key]
+        return None
+
     def _clear_cache(self) -> None:
         if not messagebox.askyesno("Clear Cache",
                                    f"Delete all {len(self._cache)} cached entities?"):
@@ -361,8 +379,7 @@ class LeiApp(tk.Tk):
                 out["lei_match_status"] = "NO MATCH"
                 match_status = "NO MATCH"
                 use_delay = False
-            elif company.strip().lower() in self._cache:
-                cached = self._cache[company.strip().lower()]
+            elif (cached := self._fuzzy_cache_lookup(company)) is not None:
                 out["lei"] = cached["lei"]
                 out["lei_legal_name"] = cached["legal_name"]
                 out["lei_jurisdiction"] = cached["jurisdiction"]
