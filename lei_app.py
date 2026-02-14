@@ -692,6 +692,7 @@ class LeiApp(tk.Tk):
                     "legal_name": legal_name,
                     "jurisdiction": jurisdiction,
                     "status": status,
+                    "_old_value": old_value,
                 }
                 self.after(0, self._apply_lei_validation, item, row_index, record)
             else:
@@ -703,13 +704,34 @@ class LeiApp(tk.Tk):
 
     def _apply_lei_validation(self, item: str, row_index: int, record: dict) -> None:
         """Main-thread callback after successful LEI validation."""
+        entity_name = self._tree.set(item, "entity_name")
+        legal_name = record["legal_name"]
+        lei_code = self._tree.set(item, "lei")
+
+        # Check if the GLEIF legal name is a reasonable match for the entity
+        score = fuzz.token_sort_ratio(entity_name.lower(), legal_name.lower()) if entity_name and legal_name else 0
+        if score < 50:
+            confirmed = messagebox.askyesno(
+                "Confirm LEI Match",
+                f"The GLEIF legal name does not closely match the entity name.\n\n"
+                f"Entity name:  {entity_name}\n"
+                f"GLEIF legal name:  {legal_name}\n"
+                f"LEI:  {lei_code}\n\n"
+                f"Do you want to keep this LEI?",
+            )
+            if not confirmed:
+                old_value = record.get("_old_value", "")
+                self._revert_lei(item, row_index, old_value,
+                                 "LEI rejected by user.")
+                return
+
         row = self._result_rows[row_index]
-        row["lei_legal_name"] = record["legal_name"]
+        row["lei_legal_name"] = legal_name
         row["lei_jurisdiction"] = record["jurisdiction"]
         row["lei_status"] = record["status"]
         row["lei_match_status"] = "REVIEWED"
 
-        self._tree.set(item, "legal_name", record["legal_name"])
+        self._tree.set(item, "legal_name", legal_name)
         self._tree.set(item, "jurisdiction", record["jurisdiction"])
         self._tree.set(item, "status", record["status"])
         self._tree.set(item, "match_status", "REVIEWED")
@@ -718,7 +740,6 @@ class LeiApp(tk.Tk):
         self._lbl_status.config(text="LEI validated successfully.")
 
         # Cache the reviewed row
-        entity_name = self._tree.set(item, "entity_name")
         if entity_name:
             self._cache_row(entity_name, row)
 
