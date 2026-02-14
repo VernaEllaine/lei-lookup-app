@@ -23,7 +23,7 @@ LEI_FIELDS = [
     "lei_confidence", "lei_match_status", "lei_candidates",
 ]
 
-_CONCURRENCY = 20
+_CONCURRENCY = 5
 
 
 async def run_lookup(
@@ -66,6 +66,8 @@ async def run_lookup(
                 match_status = cached["match_status"]
             else:
                 async with sem:
+                    # Small staggered delay to avoid bursting GLEIF rate limits
+                    await asyncio.sleep(0.2 * (i % _CONCURRENCY))
                     try:
                         result = await loop.run_in_executor(None, lookup_lei, company)
                     except (requests.RequestException, GleifAPIError) as exc:

@@ -8,10 +8,11 @@ import sqlite3
 import threading
 from typing import Any
 
-_DB_PATH = os.path.join(
+_DATA_DIR = os.environ.get(
+    "DATA_DIR",
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "lei_lookup.db",
 )
+_DB_PATH = os.path.join(_DATA_DIR, "lei_lookup.db")
 
 _local = threading.local()
 

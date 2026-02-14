@@ -72,8 +72,16 @@ Open `http://localhost:5173`
 | GET | `/api/cache/summary` | Cache stats |
 | DELETE | `/api/cache` | Clear cache |
 
-## Open Points
+## Docker
 
-- [ ] Dockerize (backend + frontend in single container)
-- [ ] Production build: `cd frontend && npm run build` then serve via FastAPI static mount
-- [ ] Add `.gitignore` entries for `*.db`, `*.db-wal`, `*.db-shm`
+```bash
+# Build
+docker build -t lei-lookup .
+
+# Run (persistent DB via named volume)
+docker run -p 8000:8000 -v lei-data:/app/data lei-lookup
+```
+
+Open `http://localhost:8000` — the React frontend is served by FastAPI.
+
+The SQLite database is stored in the `/app/data` volume so it persists across container restarts.

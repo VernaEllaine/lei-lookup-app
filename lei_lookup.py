@@ -1,6 +1,7 @@
 """Look up LEI codes by company name using the GLEIF public API."""
 
 import csv
+import random
 import re
 import sys
 import time
@@ -119,10 +120,12 @@ def _retry_after(resp: requests.Response, attempt: int) -> float:
     header = resp.headers.get("Retry-After")
     if header:
         try:
-            return min(float(header), BACKOFF_MAX)
+            base = min(float(header), BACKOFF_MAX)
+            return base + random.uniform(0, 1)
         except ValueError:
             pass
-    return min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_MAX)
+    base = min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_MAX)
+    return base + random.uniform(0, 1)
 
 
 # Common legal-form suffixes to strip when searching

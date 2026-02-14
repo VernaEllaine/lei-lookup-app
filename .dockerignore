@@ -1,0 +1,14 @@
+.git
+node_modules
+__pycache__
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+lei_cache.json*
+test_*.csv
+test_*.py
+*.log
+frontend/dist
+frontend/node_modules
