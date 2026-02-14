@@ -902,5 +902,37 @@
     "status": "ISSUED",
     "confidence": "high",
     "match_status": "REVIEWED"
+  },
+  "danone sa": {
+    "lei": "213800S18Y5XNF6TLB35",
+    "legal_name": "DANONE SA",
+    "jurisdiction": "ES",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "international consolidated airlines group": {
+    "lei": "959800TZHQRUSH1ESL13",
+    "legal_name": "",
+    "jurisdiction": "",
+    "status": "",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "lorca telecom bondco": {
+    "lei": "9598004HFBAS82YM7X35",
+    "legal_name": "CONSTELLIUM SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "enel spa": {
+    "lei": "WOCMU6HCI0OJWNPRZS33",
+    "legal_name": "Vier Gas Transport GmbH",
+    "jurisdiction": "",
+    "status": "",
+    "confidence": "",
+    "match_status": "REVIEWED"
   }
 }

@@ -30,6 +30,7 @@ TAG_AUTO = "auto"
 TAG_REVIEW = "review"
 TAG_NONE = "nomatch"
 TAG_REVIEWED = "reviewed"
+TAG_CONFIRMED = "confirmed"
 
 # LEI output columns appended to each row during processing
 LEI_FIELDS = [
@@ -58,6 +59,7 @@ class LeiApp(tk.Tk):
         self._input_headers: list[str] = []
         self._rows: list[dict] = []          # original CSV rows
         self._result_rows: list[dict] = []   # rows with LEI fields added
+        self._item_to_row: dict[str, int] = {}  # tree item ID → _result_rows index
         self._running = False
         self._cache: dict[str, dict] = {}
         self._cache_validating = False
@@ -156,6 +158,7 @@ class LeiApp(tk.Tk):
         self._tree.tag_configure(TAG_REVIEW, background="#fff3cd")   # orange/yellow
         self._tree.tag_configure(TAG_NONE, background="#f8d7da")     # red
         self._tree.tag_configure(TAG_REVIEWED, background="#cce5ff") # blue
+        self._tree.tag_configure(TAG_CONFIRMED, background="#b8daff") # darker blue
 
         # Double-click to edit cells
         self._tree.bind("<Double-1>", self._on_double_click)
@@ -173,6 +176,11 @@ class LeiApp(tk.Tk):
             frm_buttons, text="Export CSV", command=self._export_csv, state="disabled"
         )
         self._btn_export.pack(side="left", padx=4)
+
+        self._btn_confirm = ttk.Button(
+            frm_buttons, text="Confirm Reviewed", command=self._confirm_reviewed, state="disabled"
+        )
+        self._btn_confirm.pack(side="left", padx=4)
 
         self._btn_clear_cache = ttk.Button(
             frm_buttons, text="Clear Cache", command=self._clear_cache
@@ -367,6 +375,7 @@ class LeiApp(tk.Tk):
 
         # Reset UI state
         self._result_rows.clear()
+        self._item_to_row.clear()
         for item in self._tree.get_children():
             self._tree.delete(item)
         self._lbl_summary.config(text="")
@@ -507,14 +516,18 @@ class LeiApp(tk.Tk):
             self._cache_row(u["company"], row)
 
         # Treeview row
-        if ms in ("AUTO-MATCHED", "REVIEWED"):
+        if ms == "AUTO-MATCHED":
             tag = TAG_AUTO
+        elif ms == "CONFIRMED":
+            tag = TAG_CONFIRMED
+        elif ms == "REVIEWED":
+            tag = TAG_REVIEWED
         elif ms == "REVIEW NEEDED":
             tag = TAG_REVIEW
         else:
             tag = TAG_NONE
 
-        self._tree.insert(
+        item_id = self._tree.insert(
             "",
             "end",
             values=(
@@ -528,6 +541,7 @@ class LeiApp(tk.Tk):
             ),
             tags=(tag,),
         )
+        self._item_to_row[item_id] = len(self._result_rows) - 1
         # Auto-scroll to bottom
         children = self._tree.get_children()
         if children:
@@ -535,9 +549,10 @@ class LeiApp(tk.Tk):
 
     _STATUS_SORT_ORDER = {
         "AUTO-MATCHED": 0,
-        "REVIEWED": 1,
-        "REVIEW NEEDED": 2,
-        "NO MATCH": 3,
+        "CONFIRMED": 1,
+        "REVIEWED": 2,
+        "REVIEW NEEDED": 3,
+        "NO MATCH": 4,
     }
 
     def _sort_results(self) -> None:
@@ -560,6 +575,73 @@ class LeiApp(tk.Tk):
         self._refresh_summary()
         if self._result_rows:
             self._btn_export.config(state="normal")
+        # Enable confirm button if there are REVIEWED rows
+        has_reviewed = any(r.get("lei_match_status") == "REVIEWED" for r in self._result_rows)
+        self._btn_confirm.config(state="normal" if has_reviewed else "disabled")
+
+    # ------------------------------------------------------- Confirm reviewed
+    def _confirm_reviewed(self) -> None:
+        """Walk through all REVIEWED rows and ask the user to confirm each."""
+        children = self._tree.get_children()
+        reviewed_items = []
+        for child in children:
+            if self._tree.set(child, "match_status") == "REVIEWED":
+                reviewed_items.append(child)
+
+        if not reviewed_items:
+            messagebox.showinfo("Nothing to confirm", "No reviewed rows to confirm.")
+            return
+
+        confirmed = 0
+        rejected = 0
+        for item in reviewed_items:
+            entity = self._tree.set(item, "entity_name")
+            lei = self._tree.set(item, "lei")
+            legal = self._tree.set(item, "legal_name")
+            jurisdiction = self._tree.set(item, "jurisdiction")
+
+            self._tree.see(item)
+            self._tree.selection_set(item)
+
+            answer = messagebox.askyesnocancel(
+                "Confirm Reviewed Match",
+                f"Entity name:  {entity}\n"
+                f"LEI:  {lei}\n"
+                f"GLEIF legal name:  {legal}\n"
+                f"Jurisdiction:  {jurisdiction}\n\n"
+                f"Is this match final?",
+            )
+
+            if answer is None:
+                # Cancel — stop the workflow
+                break
+            elif answer:
+                # Yes — mark as CONFIRMED
+                row_index = self._item_to_row[item]
+                self._tree.set(item, "match_status", "CONFIRMED")
+                self._tree.item(item, tags=(TAG_CONFIRMED,))
+                self._result_rows[row_index]["lei_match_status"] = "CONFIRMED"
+                if entity:
+                    self._cache_row(entity, self._result_rows[row_index])
+                confirmed += 1
+            else:
+                # No — revert to REVIEW NEEDED so user can re-edit
+                row_index = self._item_to_row[item]
+                self._tree.set(item, "match_status", "REVIEW NEEDED")
+                self._tree.item(item, tags=(TAG_REVIEW,))
+                self._result_rows[row_index]["lei_match_status"] = "REVIEW NEEDED"
+                rejected += 1
+
+        self._tree.selection_remove(*self._tree.selection())
+        self._sort_results()
+        self._refresh_summary()
+
+        has_reviewed = any(r.get("lei_match_status") == "REVIEWED" for r in self._result_rows)
+        self._btn_confirm.config(state="normal" if has_reviewed else "disabled")
+
+        self._lbl_status.config(
+            text=f"Confirmation done: {confirmed} confirmed, {rejected} rejected."
+        )
 
     # -------------------------------------------------------- Inline edit
     # Editable columns (treeview column ids)
@@ -640,10 +722,8 @@ class LeiApp(tk.Tk):
             self._edit_entry = None
 
         # Find the row index in _result_rows
-        children = self._tree.get_children()
-        try:
-            row_index = list(children).index(item)
-        except ValueError:
+        row_index = self._item_to_row.get(item)
+        if row_index is None:
             return
 
         # Update treeview cell
@@ -755,14 +835,16 @@ class LeiApp(tk.Tk):
     def _refresh_summary(self) -> None:
         """Recalculate and update the summary label."""
         auto = sum(1 for r in self._result_rows if r.get("lei_match_status") == "AUTO-MATCHED")
+        confirmed = sum(1 for r in self._result_rows if r.get("lei_match_status") == "CONFIRMED")
         review = sum(1 for r in self._result_rows if r.get("lei_match_status") == "REVIEW NEEDED")
         reviewed = sum(1 for r in self._result_rows if r.get("lei_match_status") == "REVIEWED")
         none_ = sum(1 for r in self._result_rows if r.get("lei_match_status") == "NO MATCH")
         errs = sum(1 for r in self._result_rows if str(r.get("lei_match_status", "")).startswith("ERROR"))
 
         self._lbl_summary.config(
-            text=f"Summary:  {auto} Auto-matched,  {review} Review needed,  "
-                 f"{reviewed} Reviewed,  {none_} No match,  {errs} Errors  |  "
+            text=f"Summary:  {auto} Auto-matched,  {confirmed} Confirmed,  "
+                 f"{review} Review needed,  {reviewed} Reviewed,  "
+                 f"{none_} No match,  {errs} Errors  |  "
                  f"Cache: {len(self._cache)} entities"
         )
 
