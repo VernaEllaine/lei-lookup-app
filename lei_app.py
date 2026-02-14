@@ -494,10 +494,30 @@ class LeiApp(tk.Tk):
         if children:
             self._tree.see(children[-1])
 
+    _STATUS_SORT_ORDER = {
+        "AUTO-MATCHED": 0,
+        "REVIEWED": 1,
+        "REVIEW NEEDED": 2,
+        "NO MATCH": 3,
+    }
+
+    def _sort_results(self) -> None:
+        """Sort treeview rows by match status priority."""
+        children = self._tree.get_children()
+        items = []
+        for child in children:
+            status = self._tree.set(child, "match_status")
+            order = self._STATUS_SORT_ORDER.get(status, 4)
+            items.append((order, child))
+        items.sort(key=lambda x: x[0])
+        for index, (_, child) in enumerate(items):
+            self._tree.move(child, "", index)
+
     def _finish_lookup(self) -> None:
         self._running = False
         self._btn_run.config(state="normal")
         self._lbl_status.config(text="Done.")
+        self._sort_results()
         self._refresh_summary()
         if self._result_rows:
             self._btn_export.config(state="normal")
