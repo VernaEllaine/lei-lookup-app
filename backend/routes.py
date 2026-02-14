@@ -108,23 +108,25 @@ async def start_lookup(column: str = Query(...)):
     async def event_generator():
         global _running
 
+        total = len(_rows)
+        received = 0
         task = asyncio.create_task(run_lookup(_rows, column, cache, queue))
 
         try:
-            while True:
+            while received < total:
                 try:
                     progress = await asyncio.wait_for(queue.get(), timeout=0.5)
                 except asyncio.TimeoutError:
-                    if task.done():
+                    if task.done() and queue.empty():
                         break
-                    yield ":\n\n"  # keepalive
+                    if not task.done():
+                        yield ":\n\n"  # keepalive
                     continue
 
+                received += 1
+                progress.done = received == total
                 data = progress.model_dump_json()
                 yield f"data: {data}\n\n"
-
-                if progress.done:
-                    break
         except asyncio.CancelledError:
             task.cancel()
             raise
@@ -147,7 +149,7 @@ async def start_lookup(column: str = Query(...)):
 @router.get("/results")
 async def get_results(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
+    page_size: int = Query(100, ge=1, le=200000),
     status: str | None = Query(None),
 ):
     result = database.get_results_page(page, page_size, status)

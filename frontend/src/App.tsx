@@ -16,7 +16,8 @@ import ProgressBar from './components/ProgressBar';
 import ResultsTable from './components/ResultsTable';
 import SummaryBar from './components/SummaryBar';
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 100;
+const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 0]; // 0 = All
 
 const emptySummary: Summary = {
   auto_matched: 0,
@@ -41,13 +42,15 @@ export default function App() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalRows, setTotalRows] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>('');
 
   const closeRef = useRef<(() => void) | null>(null);
 
-  const fetchPage = useCallback(async (page: number, status?: string) => {
-    const r = await getResultsPage(page, PAGE_SIZE, status || undefined);
+  const fetchPage = useCallback(async (page: number, size: number, status?: string) => {
+    const effectiveSize = size === 0 ? 100000 : size;
+    const r = await getResultsPage(page, effectiveSize, status || undefined);
     setRows(r.rows);
     setTotalRows(r.total);
     setCurrentPage(r.page);
@@ -77,7 +80,7 @@ export default function App() {
     const close = startLookup(
       selectedColumn,
       (data) => {
-        setProgressCurrent(data.index + 1);
+        setProgressCurrent((prev) => prev + 1);
         setProgressTotal(data.total);
         setStatusText(data.company ? `Looking up: ${data.company}` : 'Skipped empty row');
       },
@@ -85,8 +88,7 @@ export default function App() {
         setSummary(summaryData);
         setRunning(false);
         setStatusText('Done.');
-        // Fetch first page of sorted results
-        fetchPage(1, statusFilter);
+        fetchPage(1, pageSize, statusFilter);
       },
       (err) => {
         setStatusText(`Error: ${err}`);
@@ -94,7 +96,7 @@ export default function App() {
       },
     );
     closeRef.current = close;
-  }, [selectedColumn, fetchPage, statusFilter]);
+  }, [selectedColumn, fetchPage, pageSize, statusFilter]);
 
   const handleCellSave = useCallback(
     async (index: number, field: string, value: string) => {
@@ -104,18 +106,17 @@ export default function App() {
         const validation = await validateLei(index);
         if (!validation.valid) {
           alert(validation.message);
-          fetchPage(currentPage, statusFilter);
+          fetchPage(currentPage, pageSize, statusFilter);
           return;
         }
         if (validation.needs_confirmation) {
           const confirmed = window.confirm(validation.message + '\n\nDo you want to keep this LEI?');
           if (!confirmed) {
-            fetchPage(currentPage, statusFilter);
+            fetchPage(currentPage, pageSize, statusFilter);
             return;
           }
         }
-        // Re-fetch to get validated data
-        fetchPage(currentPage, statusFilter);
+        fetchPage(currentPage, pageSize, statusFilter);
         return;
       }
 
@@ -127,13 +128,12 @@ export default function App() {
         setSummary(resp.summary);
       }
     },
-    [currentPage, statusFilter, fetchPage],
+    [currentPage, pageSize, statusFilter, fetchPage],
   );
 
   const handleConfirmAll = useCallback(async () => {
     const resp = await confirmAll();
     setSummary(resp.summary);
-    // Update local rows: REVIEWED -> CONFIRMED
     setRows((prev) =>
       prev.map((r) =>
         r.match_status === 'REVIEWED' ? { ...r, match_status: 'CONFIRMED' } : r,
@@ -154,7 +154,16 @@ export default function App() {
 
   const handlePageChange = useCallback(
     (page: number) => {
-      fetchPage(page, statusFilter);
+      fetchPage(page, pageSize, statusFilter);
+    },
+    [fetchPage, pageSize, statusFilter],
+  );
+
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+      setCurrentPage(1);
+      fetchPage(1, newSize, statusFilter);
     },
     [fetchPage, statusFilter],
   );
@@ -162,12 +171,15 @@ export default function App() {
   const handleStatusFilterChange = useCallback(
     (newStatus: string) => {
       setStatusFilter(newStatus);
-      fetchPage(1, newStatus);
+      setCurrentPage(1);
+      fetchPage(1, pageSize, newStatus);
     },
-    [fetchPage],
+    [fetchPage, pageSize],
   );
 
-  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const effectivePageSize = pageSize === 0 ? totalRows : pageSize;
+  const totalPages = effectivePageSize > 0 ? Math.max(1, Math.ceil(totalRows / effectivePageSize)) : 1;
+  const showPagination = pageSize !== 0;
 
   return (
     <div className="app">
@@ -214,31 +226,51 @@ export default function App() {
             </select>
           </div>
 
-          <div className="pagination">
-            <button
-              className="btn"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage <= 1}
+          <div className="page-size-picker">
+            <label>Rows: </label>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
             >
-              Prev
-            </button>
-            <span className="page-indicator">
-              Page {currentPage} of {totalPages} ({totalRows} rows)
-            </span>
-            <button
-              className="btn"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages}
-            >
-              Next
-            </button>
+              {PAGE_SIZE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt === 0 ? 'All' : opt}
+                </option>
+              ))}
+            </select>
           </div>
+
+          {showPagination && (
+            <div className="pagination">
+              <button
+                className="btn"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+              >
+                Prev
+              </button>
+              <span className="page-indicator">
+                Page {currentPage} of {totalPages} ({totalRows} rows)
+              </span>
+              <button
+                className="btn"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+              >
+                Next
+              </button>
+            </div>
+          )}
+
+          {!showPagination && (
+            <span className="page-indicator">{totalRows} rows</span>
+          )}
         </div>
       )}
 
       <ResultsTable rows={rows} onCellSave={handleCellSave} />
 
-      {rows.length > 0 && !running && totalPages > 1 && (
+      {rows.length > 0 && !running && showPagination && totalPages > 1 && (
         <div className="pagination pagination-bottom">
           <button
             className="btn"

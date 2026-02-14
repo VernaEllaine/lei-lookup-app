@@ -198,6 +198,25 @@ h1 {
   font-size: 14px;
 }
 
+.page-size-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-size-picker label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.page-size-picker select {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
 .pagination {
   display: flex;
   align-items: center;
