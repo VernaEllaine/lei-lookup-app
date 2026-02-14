@@ -7,6 +7,7 @@ import sys
 import time
 
 import requests
+from rapidfuzz import fuzz
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -286,6 +287,69 @@ def _prefer_parent(results: list[dict], core_name: str) -> list[dict]:
     return sorted(results, key=sort_key)
 
 
+# Minimum rapidfuzz score to consider a fuzzy spelling match
+_FUZZY_THRESHOLD = 65
+
+
+def _extract_core_name(name: str) -> str:
+    """Extract the main company name: strip legal suffixes and punctuation."""
+    core = _strip_legal_suffix(name)
+    core = re.sub(r"[^\w\s]", " ", core)
+    # Collapse whitespace
+    return " ".join(core.split()).strip()
+
+
+def _fuzzy_name_search(
+    company_name: str,
+    search_fn,
+) -> list[dict]:
+    """Last-resort fuzzy spelling search for NO MATCH rows.
+
+    Extracts the core company name (e.g. "Bayerische Motoren" from
+    "Bayerische Motoren Werke AG"), searches GLEIF with progressively
+    shorter prefixes, and returns any results whose legal names are
+    similar enough (rapidfuzz score >= threshold) — marked as "low"
+    confidence.
+    """
+    core = _extract_core_name(company_name)
+    words = core.split()
+    if not words:
+        return []
+
+    core_lower = core.lower()
+    seen_leis: set[str] = set()
+    hits: list[dict] = []
+
+    # Try the full core name first, then drop trailing words
+    # e.g. ["Bayerische Motoren Werke", "Bayerische Motoren", "Bayerische"]
+    # Stop at single-word queries only if the name was originally one word
+    min_words = 1 if len(words) <= 2 else 2
+    for n in range(len(words), min_words - 1, -1):
+        query = " ".join(words[:n])
+        if len(query) < 3:
+            continue
+        try:
+            candidates = search_fn(query)
+        except Exception:
+            continue
+
+        for r in candidates:
+            if r["lei"] in seen_leis:
+                continue
+            legal_core = _extract_core_name(r["legal_name"]).lower()
+            score = fuzz.token_sort_ratio(core_lower, legal_core)
+            if score >= _FUZZY_THRESHOLD:
+                seen_leis.add(r["lei"])
+                r["confidence"] = "low"
+                hits.append(r)
+
+        # Stop searching once we have hits
+        if hits:
+            break
+
+    return hits
+
+
 def lookup_lei(company_name: str, max_results: int = 10) -> dict:
     """Search GLEIF for LEI records matching a company name.
 
@@ -355,6 +419,10 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
     # Last resort: web search for LEI codes
     if not results:
         results = _web_search_lei(company_name)
+
+    # Final fallback: fuzzy spelling search on core name
+    if not results:
+        results = _fuzzy_name_search(company_name, _search)
 
     total = len(results)
 
