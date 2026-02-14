@@ -237,13 +237,15 @@ class LeiApp(tk.Tk):
                     timeout=15,
                 )
                 if resp.status_code == 200:
-                    reg = resp.json().get("data", {}).get("attributes", {}).get("registration", {})
-                    if reg.get("status") == "ACTIVE":
-                        # Still active, keep it
+                    attrs = resp.json().get("data", {}).get("attributes", {})
+                    entity_status = attrs.get("entity", {}).get("status", "")
+                    reg_status = attrs.get("registration", {}).get("status", "")
+                    if entity_status == "ACTIVE" or reg_status == "ISSUED":
+                        # Still active or issued, keep it
                         if i < total - 1:
                             time.sleep(0.5)
                         continue
-                # Non-active or non-200 → remove
+                # Not active or issued, or non-200 → remove
                 self._cache.pop(key, None)
                 removed += 1
             except Exception:

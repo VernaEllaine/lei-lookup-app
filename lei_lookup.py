@@ -178,6 +178,12 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
             "confidence": confidence,
         })
 
+    # Only accept records that are Active or Issued.
+    results = [
+        r for r in results
+        if r["status"] == "ACTIVE" or r["registration_status"] == "ISSUED"
+    ]
+
     # Sort by confidence so best matches appear first.
     confidence_order = {"high": 0, "medium": 1, "low": 2}
     results.sort(key=lambda r: confidence_order[r["confidence"]])
