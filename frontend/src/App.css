@@ -1,0 +1,241 @@
+/* LEI Lookup Styles */
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+h1 {
+  margin: 0 0 20px;
+  color: #333;
+}
+
+/* Buttons */
+.btn {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0069d9;
+}
+
+.btn-danger {
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc3545;
+  color: #fff;
+}
+
+/* File Upload */
+.file-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  transition: border-color 0.2s;
+}
+
+.file-upload.drag-over {
+  border-color: #007bff;
+  background: #f0f7ff;
+}
+
+.file-name {
+  color: #666;
+  font-size: 14px;
+}
+
+/* Column Picker */
+.column-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.column-picker label {
+  font-weight: 600;
+  color: #333;
+}
+
+.column-picker select {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+/* Progress */
+.progress-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.progress-bar-container {
+  flex: 1;
+  height: 20px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #007bff;
+  transition: width 0.3s ease;
+}
+
+.progress-count {
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.progress-status {
+  color: #666;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+/* Summary Bar */
+.summary-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+.summary-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.badge.auto { background: #d4edda; color: #155724; }
+.badge.confirmed { background: #b8daff; color: #004085; }
+.badge.reviewed { background: #cce5ff; color: #004085; }
+.badge.review-needed { background: #fff3cd; color: #856404; }
+.badge.no-match { background: #f8d7da; color: #721c24; }
+.badge.error { background: #f8d7da; color: #721c24; }
+.badge.cache { background: #e2e3e5; color: #383d41; }
+
+.summary-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Results Table */
+.results-table-container {
+  overflow-x: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.results-table th {
+  background: #f8f9fa;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+}
+
+.results-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #dee2e6;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results-table tr:hover {
+  filter: brightness(0.97);
+}
+
+/* Editable Cell */
+.editable-cell {
+  display: block;
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editable-cell:not(.readonly):hover {
+  outline: 1px dashed #007bff;
+  outline-offset: 2px;
+}
+
+.editable-cell.readonly {
+  cursor: copy;
+}
+
+.editable-input {
+  width: 100%;
+  padding: 2px 4px;
+  border: 2px solid #007bff;
+  border-radius: 2px;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.match-status {
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
