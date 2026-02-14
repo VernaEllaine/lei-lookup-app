@@ -301,7 +301,7 @@ class LeiApp(tk.Tk):
         # Fuzzy match against all cache keys
         if not self._cache:
             return None
-        result = process.extractOne(key, self._cache.keys(), score_cutoff=85)
+        result = process.extractOne(key, self._cache.keys(), score_cutoff=95)
         if result is not None:
             matched_key, score, _ = result
             return self._cache[matched_key]

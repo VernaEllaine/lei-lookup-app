@@ -1,0 +1,906 @@
+{
+  "vonovia se": {
+    "lei": "5299005A2ZEP6AP7KM81",
+    "legal_name": "Vonovia SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "e.on se": {
+    "lei": "Q9MAIUP40P25UFBFG033",
+    "legal_name": "E.ON SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "cellnex telecom sa": {
+    "lei": "5493008T4YG3AQUI7P67",
+    "legal_name": "CELLNEX TELECOM SA",
+    "jurisdiction": "ES",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "schneider electric se": {
+    "lei": "969500A1YF1XUYYXS284",
+    "legal_name": "SCHNEIDER ELECTRIC SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "amprion gmbh": {
+    "lei": "529900ZIV0ETYHYZM863",
+    "legal_name": "Amprion GmbH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "totalenergies se": {
+    "lei": "529900S21EQ1BO4ESM68",
+    "legal_name": "TotalEnergies SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "deutsche post ag": {
+    "lei": "8ER8GIG7CSMVD8VUFE78",
+    "legal_name": "Deutsche Post AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "eurogrid gmbh": {
+    "lei": "967600Q53854Z2NBCC81",
+    "legal_name": "Eurogrid GmbH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "sanofi sa": {
+    "lei": "549300E9PC51EN656011",
+    "legal_name": "SANOFI",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "basf se": {
+    "lei": "529900PM64WH8AF1E917",
+    "legal_name": "BASF SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "fresenius se & co kgaa": {
+    "lei": "XDFJ0CYCOO1FXRFTQS51",
+    "legal_name": "Fresenius SE & Co. KGaA",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "deutsche telekom ag": {
+    "lei": "549300V9QSIG4WX4GJ96",
+    "legal_name": "DEUTSCHE TELEKOM AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "suez": {
+    "lei": "5493007LKZ37MXEN5D79",
+    "legal_name": "SUEZ",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "air liquide finance": {
+    "lei": "549300YGXL5Z3R14K812",
+    "legal_name": "AIR LIQUIDE FINANCE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "schaeffler ag": {
+    "lei": "549300Q7E782X7GC1P43",
+    "legal_name": "Schaeffler AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "leg immobilien se": {
+    "lei": "391200SO40AKONBO0Z96",
+    "legal_name": "LEG Immobilien SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "bertelsmann se & co kgaa": {
+    "lei": "5299001BUUGXAREGE533",
+    "legal_name": "Bertelsmann SE & Co. KGaA",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "porsche automobil holding se": {
+    "lei": "52990053Z17ZYM1KFV27",
+    "legal_name": "Porsche Automobil Holding SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "fresenius medical care ag": {
+    "lei": "549300CP8NY40UP89Q40",
+    "legal_name": "Fresenius Medical Care AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "infineon technologies ag": {
+    "lei": "TSI2PJM6EPETEQ4X1U25",
+    "legal_name": "Infineon Technologies AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "thales sa": {
+    "lei": "254900IKOORIL9HLEX88",
+    "legal_name": "Thales SA",
+    "jurisdiction": "CH",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "mercedes-benz group ag": {
+    "lei": "529900R27DL06UVNT076",
+    "legal_name": "Mercedes-Benz Group AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "iho verwaltungs gmbh": {
+    "lei": "529900JL0HDVGZMUJF32",
+    "legal_name": "IHO Verwaltungs GmbH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "delivery hero se": {
+    "lei": "529900C3EX1FZGE48X78",
+    "legal_name": "Delivery Hero SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "teleperformance se": {
+    "lei": "9695004GI61FHFFNRG61",
+    "legal_name": "TELEPERFORMANCE SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "mundys spa": {
+    "lei": "8156008DEC771409C487",
+    "legal_name": "MUNDYS SPA",
+    "jurisdiction": "IT",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "colonial sfl socimi sa": {
+    "lei": "95980020140005007414",
+    "legal_name": "COLONIAL SFL SOCIMI SA",
+    "jurisdiction": "ES",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "zf finance gmbh": {
+    "lei": "5493001N9T6QDCCXB426",
+    "legal_name": "ZF Finance GmbH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "adidas ag": {
+    "lei": "549300JSX0Z4CW0V5023",
+    "legal_name": "adidas AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "amadeus it group sa": {
+    "lei": "9598004A3FTY3TEHHN09",
+    "legal_name": "AMADEUS IT GROUP SOCIEDAD ANONIMA",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "heidelberg materials ag": {
+    "lei": "LZ2C6E0W5W7LQMX5ZI37",
+    "legal_name": "Heidelberg Materials AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "evonik industries ag": {
+    "lei": "41GUOJQTALQHLF39XJ34",
+    "legal_name": "Evonik Industries AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "vier gas transport gmbh": {
+    "lei": "529900AGED6PJE9AVL37",
+    "legal_name": "Vier Gas Transport GmbH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "icade": {
+    "lei": "969500UDH342QLTE1M42",
+    "legal_name": "ICADE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "tag immobilien ag": {
+    "lei": "529900TAE68USJNXLR59",
+    "legal_name": "TAG Immobilien AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "constellium se": {
+    "lei": "724500KRJEMC79KAAU28",
+    "legal_name": "CONSTELLIUM SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "atos se": {
+    "lei": "5493001EZOOA66PTBR68",
+    "legal_name": "ATOS SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "jcdecaux se": {
+    "lei": "9695009KV7AFPDEI5S30",
+    "legal_name": "JCDECAUX SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "cepsa finance sa": {
+    "lei": "959800QEUH8V5SPPCB45",
+    "legal_name": "CEPSA FINANCE SA",
+    "jurisdiction": "ES",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "cerved group spa": {
+    "lei": "8156005E0EF91772E207",
+    "legal_name": "CERVED GROUP S.P.A.",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "tereos finance groupe i": {
+    "lei": "969500183Z46A3QF8W69",
+    "legal_name": "TEREOS FINANCE GROUPE I",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "covestro ag": {
+    "lei": "3912005AWHKLQ1CPLV11",
+    "legal_name": "Covestro AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "deutsche wohnen se": {
+    "lei": "529900QE24Q67I3FWZ10",
+    "legal_name": "Deutsche Wohnen SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "la francaise des jeux": {
+    "lei": "969500R4CLSQFTYYI535",
+    "legal_name": "LA FRANCAISE DES JEUX",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "mtu aero engines ag": {
+    "lei": "529900807L67JY81RD65",
+    "legal_name": "MTU Aero Engines AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "sap se": {
+    "lei": "529900D6BF99LW9R2E68",
+    "legal_name": "SAP SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "rag-stiftung": {
+    "lei": "529900C4BQB2G2UM9E04",
+    "legal_name": "RAG-Stiftung",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "symrise ag": {
+    "lei": "529900D82I6R9601CF26",
+    "legal_name": "Symrise AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "henkel ag & co kgaa": {
+    "lei": "549300VZCL1HTH4O4Y49",
+    "legal_name": "Henkel AG & Co. KGaA",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "mahle gmbh": {
+    "lei": "52990098TR1QJBWIYG58",
+    "legal_name": "MAHLE GmbH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "ferrovial emisiones sa": {
+    "lei": "95980020140005209562",
+    "legal_name": "FERROVIAL EMISIONES SA",
+    "jurisdiction": "ES",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "apcoa gmbh": {
+    "lei": "529900H8FIYAOV5FUW68",
+    "legal_name": "APCOA GMBH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "opal bidco sas": {
+    "lei": "969500R96XT7XY2UJ564",
+    "legal_name": "OPAL BIDCO SAS",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "wpp finance sa": {
+    "lei": "549300KWN0W6L03WNN80",
+    "legal_name": "WPP FINANCE SA",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "sixt se": {
+    "lei": "5299004ZME6CSBR7WP07",
+    "legal_name": "Sixt SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "tk elevator midco gmbh": {
+    "lei": "254900K869UN2ZWVB351",
+    "legal_name": "TK Elevator Midco GmbH",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "italgas reti spa": {
+    "lei": "815600E731A5016E3080",
+    "legal_name": "ITALGAS RETI SPA",
+    "jurisdiction": "IT",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "metro ag": {
+    "lei": "5299006EQ03K3SSUYS12",
+    "legal_name": "METRO AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "el corte ingles sa": {
+    "lei": "95980020140005374753",
+    "legal_name": "EL CORTE INGLES SA",
+    "jurisdiction": "ES",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "spie sa": {
+    "lei": "969500TJNS5GSFWJ8X85",
+    "legal_name": "SPIE SA",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "cidron atrium se": {
+    "lei": "2549004YHD7GOLT9Y166",
+    "legal_name": "Cidron Atrium SE",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "tui ag": {
+    "lei": "529900SL2WSPV293B552",
+    "legal_name": "TUI AG",
+    "jurisdiction": "DE",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "orange sa": {
+    "lei": "969500MCOONR8990S771",
+    "legal_name": "ORANGE",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "engie sa": {
+    "lei": "LAXUQCHT4FH58LRZDY46",
+    "legal_name": "ENGIE",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "bayer ag": {
+    "lei": "549300J4U55H3WP1XT59",
+    "legal_name": "Bayer Aktiengesellschaft",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "l'oreal sa": {
+    "lei": "529900JI1GG6F7RKVI53",
+    "legal_name": "L'OREAL",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "pernod ricard sa": {
+    "lei": "52990097YFPX9J0H5D87",
+    "legal_name": "PERNOD RICARD",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "carrefour sa": {
+    "lei": "549300B8P6MUJ1YWTS08",
+    "legal_name": "CARREFOUR",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "rwe ag": {
+    "lei": "529900GB7KCA94ACC940",
+    "legal_name": "RWE Aktiengesellschaft",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "renault sa": {
+    "lei": "969500F7JLTX36OUI695",
+    "legal_name": "RENAULT",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "continental ag": {
+    "lei": "529900A7YD9C0LLXM621",
+    "legal_name": "Continental Aktiengesellschaft",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "robert bosch gmbh": {
+    "lei": "529900F0LT5OP4SV6122",
+    "legal_name": "Robert Bosch Gesellschaft mit beschr\u00e4nkter Haftung",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "vinci sa": {
+    "lei": "213800WFQ334R8UXUG83",
+    "legal_name": "VINCI",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "legrand sa": {
+    "lei": "969500XXRPGD7HCAFA90",
+    "legal_name": "LEGRAND",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "air france-klm": {
+    "lei": "969500AQW31GYO8JZD66",
+    "legal_name": "",
+    "jurisdiction": "",
+    "status": "",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "italgas spa": {
+    "lei": "815600F25FF44EF1FA76",
+    "legal_name": "ITALGAS S.P.A.",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "nidda healthcare holding": {
+    "lei": "549300Q89C4WAO6L0L19",
+    "legal_name": "",
+    "jurisdiction": "",
+    "status": "",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "prysmian spa": {
+    "lei": "529900X0H1IO3RS1A464",
+    "legal_name": "PRYSMIAN S.P.A.",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "poste italiane spa": {
+    "lei": "815600354DEDBD0BA991",
+    "legal_name": "POSTE ITALIANE - SOCIETA' PER AZIONI",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "autoroutes du sud de la": {
+    "lei": "213800U12KWYZEECZ934",
+    "legal_name": "",
+    "jurisdiction": "",
+    "status": "",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "merck kgaa": {
+    "lei": "529900OAREIS0MOPTW25",
+    "legal_name": "MERCK Kommanditgesellschaft auf Aktien",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "lanxess ag": {
+    "lei": "529900PTLRE72EMYIJ77",
+    "legal_name": "LANXESS Aktiengesellschaft",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "verallia sa": {
+    "lei": "5299007YZU978DE0ZY32",
+    "legal_name": "VERALLIA",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "elis sa": {
+    "lei": "969500UX71LCE8MAY492",
+    "legal_name": "ELIS",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "imerys sa": {
+    "lei": "54930075MZSSIB2TGC64",
+    "legal_name": "IMERYS",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "nexans sa": {
+    "lei": "96950015FU78G84UIV14",
+    "legal_name": "NEXANS",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "publicis groupe sa": {
+    "lei": "2138004KW8BV57III342",
+    "legal_name": "PUBLICIS GROUPE SA",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "caixabank sa": {
+    "lei": "7CUNS533WID6K7DGFI87",
+    "legal_name": "CAIXABANK SA",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "totalenergies cap intl": {
+    "lei": "529900S21EQ1BO4ESM68",
+    "legal_name": "TotalEnergies SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "cie de saint-gobain sa": {
+    "lei": "NFONVGN05Z0FMN5PEC35",
+    "legal_name": "COMPAGNIE DE SAINT-GOBAIN",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "totalenergies capital sa": {
+    "lei": "529900S21EQ1BO4ESM68",
+    "legal_name": "TotalEnergies SE",
+    "jurisdiction": "FR",
+    "status": "ACTIVE",
+    "confidence": "high",
+    "match_status": "AUTO-MATCHED"
+  },
+  "iberdrola finanzas sau": {
+    "lei": "5493004PZNZWWBOUV388",
+    "legal_name": "IBERDROLA FINANZAS SA",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "telefonica emisiones sau": {
+    "lei": "549300Y5MFC4SW5Z3K71",
+    "legal_name": "TELEFONICA EMISIONES SA",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "unibail-rodamco-westfld": {
+    "lei": "969500SHQITWXSIS7N89",
+    "legal_name": "UNIBAIL-RODAMCO-WESTFIELD SE",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "volkswagen financial ser": {
+    "lei": "529900SSGT49ZZSWYE62",
+    "legal_name": "Volkswagen Financial Services AG",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "abertis france sas": {
+    "lei": "9695004S3RCE0Q5V8G28",
+    "legal_name": "ABERTIS FRANCE",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "acciona energia financia": {
+    "lei": "254900CO48EPLIMJDK17",
+    "legal_name": "Acciona Energia Financiacion Filiales SA.",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "abertis finance bv": {
+    "lei": "5493007WHKI5H75YJ358",
+    "legal_name": "ABERTIS INFRAESTRUCTURAS FINANCE B.V.",
+    "jurisdiction": "NL",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "enbw energie baden - wu": {
+    "lei": "529900JSFZ4TS59HKD79",
+    "legal_name": "EnBW Energie Baden-W\u00fcrttemberg AG",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "telecom italia spa/milano": {
+    "lei": "549300W384M3RI3VXU42",
+    "legal_name": "TELECOM ITALIA SPA O TIM S.P.A.",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
+    "confidence": "",
+    "match_status": "REVIEWED"
+  },
+  "arval service lease sa/f": {
+    "lei": "969500UCL6ROAHVXQV60",
+    "legal_name": "ARVAL SERVICE LEASE",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "howoge wohnungs": {
+    "lei": "894500BIY1Z9MG9QB745",
+    "legal_name": "HOWOGE Wohnungsbaugesellschaft mit beschr\u00e4nkter Haftung",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "covivio sa/france": {
+    "lei": "969500P8M3W2XX376054",
+    "legal_name": "COVIVIO",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "techem verwaltungsgesell": {
+    "lei": "529900N0M7FQHNAV1A41",
+    "legal_name": "Techem Verwaltungsgesellschaft 675 mbH",
+    "jurisdiction": "DE",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "praemia healthcare saca": {
+    "lei": "96950067NFR9MWI0CJ45",
+    "legal_name": "PRAEMIA HEALTHCARE",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "hldng d'infra metiers": {
+    "lei": "969500I3QVK40XEORU25",
+    "legal_name": "HOLDING D'INFRASTRUCTURES DES METIERS DE L'ENVIRONNEMENT",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "werfen sa/spain": {
+    "lei": "9598003BHZ02SG7LKD16",
+    "legal_name": "WERFEN S.A.",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "altrad investment author": {
+    "lei": "969500ZVXDEW43J4LH50",
+    "legal_name": "ALTRAD INVESTMENT AUTHORITY",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "itm entreprises sasu": {
+    "lei": "969500LMMR83QL6TLK43",
+    "legal_name": "ITM ENTREPRISES SA",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "medium",
+    "match_status": "REVIEWED"
+  },
+  "fabbrica ita sintetici": {
+    "lei": "8156004D7056C63EC525",
+    "legal_name": "F.I.S. FABBRICA ITALIANA SINTETICI S.P.A.",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "covivio hotels saca": {
+    "lei": "969500N2QX5LGFFZ0I67",
+    "legal_name": "COVIVIO HOTELS",
+    "jurisdiction": "FR",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "almaviva the italian inn": {
+    "lei": "815600A862DA4DD9E211",
+    "legal_name": "ALMAVIVA - THE ITALIAN INNOVATION COMPANY S.P.A. IN BREVE ALMAVIVA S.P.A.",
+    "jurisdiction": "IT",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  },
+  "nortegas energia grupo s": {
+    "lei": "959800BV22XY8K22ZD24",
+    "legal_name": "NORTEGAS ENERGIA GRUPO SA",
+    "jurisdiction": "ES",
+    "status": "ISSUED",
+    "confidence": "high",
+    "match_status": "REVIEWED"
+  }
+}
