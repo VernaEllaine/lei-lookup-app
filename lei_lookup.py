@@ -162,6 +162,127 @@ def _strip_legal_suffix(name: str) -> str:
     return cleaned.strip() or name
 
 
+# Regex to find 20-character LEI codes in text
+_LEI_PATTERN = re.compile(r"\b([A-Z0-9]{20})\b")
+
+
+def _web_search_lei(company_name: str) -> list[dict]:
+    """Search the web for an LEI code and validate any found against GLEIF.
+
+    Returns a list of result dicts (same format as _search in lookup_lei),
+    or an empty list if nothing is found.
+    """
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        return []
+
+    query = f"{company_name} LEI legal entity identifier"
+    try:
+        with DDGS() as ddgs:
+            web_results = list(ddgs.text(query, max_results=5))
+    except Exception:
+        return []
+
+    # Extract candidate LEI codes from search result titles and bodies
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for r in web_results:
+        text = f"{r.get('title', '')} {r.get('body', '')}"
+        for match in _LEI_PATTERN.findall(text):
+            if match not in seen:
+                seen.add(match)
+                candidates.append(match)
+
+    # Validate candidates against GLEIF in a single batch request
+    if not candidates:
+        return []
+
+    lei_filter = ",".join(candidates[:20])
+    try:
+        resp = requests.get(
+            f"{GLEIF_BASE}/lei-records",
+            params={"filter[lei]": lei_filter, "page[size]": "20"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return []
+    except Exception:
+        return []
+
+    results = []
+    for rec in resp.json().get("data", []):
+        attrs = rec.get("attributes", {})
+        entity = attrs.get("entity", {})
+        registration = attrs.get("registration", {})
+        legal_name = entity.get("legalName", {}).get("name", "")
+        status = entity.get("status", "")
+        reg_status = registration.get("status", "")
+
+        if status != "ACTIVE" and reg_status != "ISSUED":
+            continue
+
+        confidence = _compute_confidence(company_name, legal_name)
+        results.append({
+            "lei": attrs.get("lei", ""),
+            "legal_name": legal_name,
+            "jurisdiction": entity.get("jurisdiction", ""),
+            "status": status,
+            "registration_status": reg_status,
+            "confidence": confidence,
+        })
+
+    return results
+
+
+# Words that indicate a subsidiary or sub-entity rather than the parent
+_SUBSIDIARY_WORDS = re.compile(
+    r"\b(finance|finanzas|financiacion|financi|funding|capital|"
+    r"treasury|emissions|emisiones|productos|produits|"
+    r"holdings?|filiales?|subsidiary|services?|solutions?|"
+    r"international|global|europe|americas?|asia|pacific)\b",
+    re.IGNORECASE,
+)
+
+_BARE_SA_SE = re.compile(r"\b(sa|se)\s*$", re.IGNORECASE)
+
+
+def _is_bare_sa_se(name: str) -> bool:
+    """Return True if *name* ends with SA or SE without a country qualifier."""
+    stripped = name.strip()
+    if not _BARE_SA_SE.search(stripped):
+        return False
+    # Check there's no country-like word (e.g. "/France", "/Spain")
+    if re.search(r"/\w+$", stripped):
+        return False
+    return True
+
+
+def _prefer_parent(results: list[dict], core_name: str) -> list[dict]:
+    """Re-order *results* so the most likely parent entity comes first.
+
+    Prefers results whose core legal name matches the query core name,
+    penalises names containing subsidiary-type words, and among ties
+    prefers shorter names (parent entities have simpler names).
+    """
+    def sort_key(r: dict) -> tuple:
+        legal = r["legal_name"]
+        legal_core = re.sub(r"[^\w\s]", "", _strip_legal_suffix(legal).strip().lower())
+
+        # Exact core match is best
+        exact_core = 0 if legal_core == core_name else 1
+
+        # Penalise subsidiary-like words in the legal name
+        has_sub_word = 1 if _SUBSIDIARY_WORDS.search(legal) else 0
+
+        # Prefer shorter names (parent entities are simpler)
+        name_len = len(legal)
+
+        return (exact_core, has_sub_word, name_len)
+
+    return sorted(results, key=sort_key)
+
+
 def lookup_lei(company_name: str, max_results: int = 10) -> dict:
     """Search GLEIF for LEI records matching a company name.
 
@@ -216,13 +337,30 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
 
     results = _search(company_name)
 
-    # If no results, retry with legal suffix stripped (e.g. "Enel SPA" → "Enel")
+    # Also search with suffix stripped and merge results.  For SA/SE queries
+    # like "Carrefour SA", the parent may be registered as just "CARREFOUR".
+    stripped = _strip_legal_suffix(company_name)
+    if stripped.lower() != company_name.strip().lower():
+        stripped_results = _search(stripped)
+        # Merge, avoiding duplicate LEIs
+        seen_leis = {r["lei"] for r in results}
+        for r in stripped_results:
+            if r["lei"] not in seen_leis:
+                results.append(r)
+                seen_leis.add(r["lei"])
+
+    # Last resort: web search for LEI codes
     if not results:
-        stripped = _strip_legal_suffix(company_name)
-        if stripped.lower() != company_name.strip().lower():
-            results = _search(stripped)
+        results = _web_search_lei(company_name)
 
     total = len(results)
+
+    # For queries ending in SA/SE without a country qualifier, prefer the
+    # parent/main entity — typically the one with the shortest legal name
+    # that still matches the core search term.
+    if results and _is_bare_sa_se(company_name):
+        core = _strip_legal_suffix(company_name).strip().lower()
+        results = _prefer_parent(results, core)
 
     # Sort by confidence so best matches appear first.
     confidence_order = {"high": 0, "medium": 1, "low": 2}
