@@ -36,9 +36,7 @@ export default function EditableCell({ value, field, readOnly, onSave }: Props) 
 
   const commit = () => {
     setEditing(false);
-    if (editValue !== value) {
-      onSave(field, editValue);
-    }
+    onSave(field, editValue);
   };
 
   const cancel = () => {
