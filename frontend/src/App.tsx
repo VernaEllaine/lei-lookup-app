@@ -3,7 +3,7 @@ import type { RowResult, Summary } from './types';
 import {
   uploadCsv,
   startLookup,
-  getResults,
+  getResultsPage,
   updateCell,
   validateLei,
   confirmAll,
@@ -16,21 +16,7 @@ import ProgressBar from './components/ProgressBar';
 import ResultsTable from './components/ResultsTable';
 import SummaryBar from './components/SummaryBar';
 
-const STATUS_SORT_ORDER: Record<string, number> = {
-  'AUTO-MATCHED': 0,
-  'CONFIRMED': 1,
-  'REVIEWED': 2,
-  'REVIEW NEEDED': 3,
-  'NO MATCH': 4,
-};
-
-function sortRows(rows: RowResult[]): RowResult[] {
-  return [...rows].sort(
-    (a, b) =>
-      (STATUS_SORT_ORDER[a.match_status] ?? 5) -
-      (STATUS_SORT_ORDER[b.match_status] ?? 5),
-  );
-}
+const PAGE_SIZE = 50;
 
 const emptySummary: Summary = {
   auto_matched: 0,
@@ -53,7 +39,20 @@ export default function App() {
   const [progressTotal, setProgressTotal] = useState(0);
   const [statusText, setStatusText] = useState('');
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>('');
+
   const closeRef = useRef<(() => void) | null>(null);
+
+  const fetchPage = useCallback(async (page: number, status?: string) => {
+    const r = await getResultsPage(page, PAGE_SIZE, status || undefined);
+    setRows(r.rows);
+    setTotalRows(r.total);
+    setCurrentPage(r.page);
+    setSummary(r.summary);
+  }, []);
 
   const handleUpload = useCallback(async (file: File) => {
     const resp = await uploadCsv(file);
@@ -61,6 +60,9 @@ export default function App() {
     setSelectedColumn(resp.detected_column || resp.headers[0] || '');
     setRows([]);
     setSummary(emptySummary);
+    setTotalRows(0);
+    setCurrentPage(1);
+    setStatusFilter('');
     setStatusText(`Loaded ${resp.row_count} rows`);
   }, []);
 
@@ -78,17 +80,13 @@ export default function App() {
         setProgressCurrent(data.index + 1);
         setProgressTotal(data.total);
         setStatusText(data.company ? `Looking up: ${data.company}` : 'Skipped empty row');
-        setRows((prev) => [...prev, data.row]);
       },
       (summaryData) => {
         setSummary(summaryData);
         setRunning(false);
         setStatusText('Done.');
-        // Re-fetch sorted results
-        getResults().then((r) => {
-          setRows(r.rows);
-          setSummary(r.summary);
-        });
+        // Fetch first page of sorted results
+        fetchPage(1, statusFilter);
       },
       (err) => {
         setStatusText(`Error: ${err}`);
@@ -96,49 +94,51 @@ export default function App() {
       },
     );
     closeRef.current = close;
-  }, [selectedColumn]);
+  }, [selectedColumn, fetchPage, statusFilter]);
 
   const handleCellSave = useCallback(
     async (index: number, field: string, value: string) => {
       const resp = await updateCell(index, field, value);
 
       if (field === 'lei') {
-        // Validate the new LEI
         const validation = await validateLei(index);
         if (!validation.valid) {
           alert(validation.message);
-          // Refresh to get reverted state
-          const r = await getResults();
-          setRows(r.rows);
-          setSummary(r.summary);
+          fetchPage(currentPage, statusFilter);
           return;
         }
         if (validation.needs_confirmation) {
           const confirmed = window.confirm(validation.message + '\n\nDo you want to keep this LEI?');
           if (!confirmed) {
-            // Revert: re-fetch
-            const r = await getResults();
-            setRows(r.rows);
-            setSummary(r.summary);
+            fetchPage(currentPage, statusFilter);
             return;
           }
         }
+        // Re-fetch to get validated data
+        fetchPage(currentPage, statusFilter);
+        return;
       }
 
-      // Refresh results
-      const r = await getResults();
-      setRows(r.rows);
-      setSummary(r.summary);
+      // Delta update: patch the single row in local state
+      if (resp.row) {
+        setRows((prev) =>
+          prev.map((r) => (r.index === resp.row.index ? resp.row : r)),
+        );
+        setSummary(resp.summary);
+      }
     },
-    [],
+    [currentPage, statusFilter, fetchPage],
   );
 
   const handleConfirmAll = useCallback(async () => {
     const resp = await confirmAll();
     setSummary(resp.summary);
-    const r = await getResults();
-    setRows(r.rows);
-    setSummary(r.summary);
+    // Update local rows: REVIEWED -> CONFIRMED
+    setRows((prev) =>
+      prev.map((r) =>
+        r.match_status === 'REVIEWED' ? { ...r, match_status: 'CONFIRMED' } : r,
+      ),
+    );
   }, []);
 
   const handleExport = useCallback(() => {
@@ -152,7 +152,22 @@ export default function App() {
     setStatusText(resp.message);
   }, []);
 
-  const displayRows = running ? rows : sortRows(rows);
+  const handlePageChange = useCallback(
+    (page: number) => {
+      fetchPage(page, statusFilter);
+    },
+    [fetchPage, statusFilter],
+  );
+
+  const handleStatusFilterChange = useCallback(
+    (newStatus: string) => {
+      setStatusFilter(newStatus);
+      fetchPage(1, newStatus);
+    },
+    [fetchPage],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
 
   return (
     <div className="app">
@@ -182,7 +197,68 @@ export default function App() {
         disabled={running}
       />
 
-      <ResultsTable rows={displayRows} onCellSave={handleCellSave} />
+      {rows.length > 0 && !running && (
+        <div className="table-controls">
+          <div className="status-filter">
+            <label>Filter: </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
+            >
+              <option value="">All</option>
+              <option value="AUTO-MATCHED">Auto-Matched</option>
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="REVIEWED">Reviewed</option>
+              <option value="REVIEW NEEDED">Review Needed</option>
+              <option value="NO MATCH">No Match</option>
+            </select>
+          </div>
+
+          <div className="pagination">
+            <button
+              className="btn"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+            >
+              Prev
+            </button>
+            <span className="page-indicator">
+              Page {currentPage} of {totalPages} ({totalRows} rows)
+            </span>
+            <button
+              className="btn"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ResultsTable rows={rows} onCellSave={handleCellSave} />
+
+      {rows.length > 0 && !running && totalPages > 1 && (
+        <div className="pagination pagination-bottom">
+          <button
+            className="btn"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+          >
+            Prev
+          </button>
+          <span className="page-indicator">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            className="btn"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

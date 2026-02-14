@@ -170,41 +170,110 @@ h1 {
   gap: 8px;
 }
 
-/* Results Table */
-.results-table-container {
-  overflow-x: auto;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
+/* Table Controls: Filter + Pagination */
+.table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 16px;
 }
 
-.results-table {
-  width: 100%;
-  border-collapse: collapse;
+.status-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-filter label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.status-filter select {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
   font-size: 14px;
 }
 
-.results-table th {
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-bottom {
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.page-indicator {
+  font-size: 14px;
+  color: #555;
+  white-space: nowrap;
+}
+
+/* Results Table — header */
+.results-table-container {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.results-header-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  table-layout: fixed;
+}
+
+.results-header-table th {
   background: #f8f9fa;
   padding: 10px 12px;
   text-align: left;
   border-bottom: 2px solid #dee2e6;
   font-weight: 600;
-  position: sticky;
-  top: 0;
   white-space: nowrap;
 }
 
-.results-table td {
-  padding: 6px 12px;
-  border-bottom: 1px solid #dee2e6;
-  max-width: 250px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Virtual scroll container */
+.results-scroll {
+  height: 70vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.results-table tr:hover {
+/* Virtual row — flex layout matching header columns */
+.virtual-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #dee2e6;
+  box-sizing: border-box;
+}
+
+.virtual-row:hover {
   filter: brightness(0.97);
 }
+
+.virtual-cell {
+  padding: 6px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+/* Column widths — shared between header and virtual rows */
+.col-entity { width: 18%; }
+.col-lei { width: 22%; }
+.col-legal { width: 18%; }
+.col-jurisdiction { width: 10%; }
+.col-status { width: 10%; }
+.col-confidence { width: 10%; }
+.col-match { width: 12%; }
 
 /* Editable Cell */
 .editable-cell {

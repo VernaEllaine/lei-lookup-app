@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { RowResult } from '../types';
 import EditableCell from './EditableCell';
 
@@ -9,82 +11,119 @@ const STATUS_COLORS: Record<string, string> = {
   'NO MATCH': '#f8d7da',
 };
 
+const ROW_HEIGHT = 44;
+const OVERSCAN = 10;
+
 interface Props {
   rows: RowResult[];
   onCellSave: (index: number, field: string, value: string) => void;
 }
 
 export default function ResultsTable({ rows, onCellSave }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
   if (rows.length === 0) return null;
 
   return (
     <div className="results-table-container">
-      <table className="results-table">
+      <table className="results-table results-header-table">
         <thead>
           <tr>
-            <th>Entity Name</th>
-            <th>LEI</th>
-            <th>Legal Name</th>
-            <th>Jurisdiction</th>
-            <th>Status</th>
-            <th>Confidence</th>
-            <th>Match Status</th>
+            <th className="col-entity">Entity Name</th>
+            <th className="col-lei">LEI</th>
+            <th className="col-legal">Legal Name</th>
+            <th className="col-jurisdiction">Jurisdiction</th>
+            <th className="col-status">Status</th>
+            <th className="col-confidence">Confidence</th>
+            <th className="col-match">Match Status</th>
           </tr>
         </thead>
-        <tbody>
-          {rows.map((row) => {
-            const bg = STATUS_COLORS[row.match_status] || (row.match_status.startsWith('ERROR') ? '#f8d7da' : undefined);
+      </table>
+      <div ref={scrollRef} className="results-scroll">
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            position: 'relative',
+            width: '100%',
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            const bg =
+              STATUS_COLORS[row.match_status] ||
+              (row.match_status.startsWith('ERROR') ? '#f8d7da' : undefined);
             return (
-              <tr key={row.index} style={{ backgroundColor: bg }}>
-                <td>
+              <div
+                key={row.index}
+                className="virtual-row"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                  backgroundColor: bg,
+                }}
+              >
+                <div className="virtual-cell col-entity">
                   <EditableCell
                     value={row.entity_name}
                     field="entity_name"
                     readOnly
                     onSave={() => {}}
                   />
-                </td>
-                <td>
+                </div>
+                <div className="virtual-cell col-lei">
                   <EditableCell
                     value={row.lei}
                     field="lei"
                     onSave={(field, value) => onCellSave(row.index, field, value)}
                   />
-                </td>
-                <td>
+                </div>
+                <div className="virtual-cell col-legal">
                   <EditableCell
                     value={row.legal_name}
                     field="legal_name"
                     onSave={(field, value) => onCellSave(row.index, field, value)}
                   />
-                </td>
-                <td>
+                </div>
+                <div className="virtual-cell col-jurisdiction">
                   <EditableCell
                     value={row.jurisdiction}
                     field="jurisdiction"
                     onSave={(field, value) => onCellSave(row.index, field, value)}
                   />
-                </td>
-                <td>
+                </div>
+                <div className="virtual-cell col-status">
                   <EditableCell
                     value={row.status}
                     field="status"
                     onSave={(field, value) => onCellSave(row.index, field, value)}
                   />
-                </td>
-                <td>
+                </div>
+                <div className="virtual-cell col-confidence">
                   <EditableCell
                     value={row.confidence}
                     field="confidence"
                     onSave={(field, value) => onCellSave(row.index, field, value)}
                   />
-                </td>
-                <td className="match-status">{row.match_status}</td>
-              </tr>
+                </div>
+                <div className="virtual-cell col-match match-status">
+                  {row.match_status}
+                </div>
+              </div>
             );
           })}
-        </tbody>
-      </table>
+        </div>
+      </div>
     </div>
   );
 }

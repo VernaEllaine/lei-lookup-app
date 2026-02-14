@@ -22,6 +22,14 @@ export interface Summary {
   cache_size: number;
 }
 
+export interface PaginatedResponse {
+  rows: RowResult[];
+  total: number;
+  page: number;
+  page_size: number;
+  summary: Summary;
+}
+
 export interface UploadResponse {
   headers: string[];
   row_count: number;

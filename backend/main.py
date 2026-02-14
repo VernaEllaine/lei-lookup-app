@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from backend import database
 from backend.routes import cache, router
 
 app = FastAPI(title="LEI Lookup", version="1.0.0")
@@ -36,6 +37,7 @@ if os.path.isdir(_frontend_dist):
 
 @app.on_event("startup")
 async def startup():
+    database.init_db()
     cache.load()
     if cache.size > 0:
         threading.Thread(target=cache.validate, daemon=True).start()

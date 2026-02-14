@@ -1,4 +1,4 @@
-import type { UploadResponse, RowResult, Summary, ValidateLeiResponse } from './types';
+import type { UploadResponse, RowResult, Summary, PaginatedResponse, ValidateLeiResponse } from './types';
 
 const BASE = '/api';
 
@@ -43,9 +43,22 @@ export function startLookup(
   return () => es.close();
 }
 
-export async function getResults(): Promise<{ rows: RowResult[]; summary: Summary }> {
-  const resp = await fetch(`${BASE}/results`);
+export async function getResultsPage(
+  page: number = 1,
+  pageSize: number = 50,
+  status?: string,
+): Promise<PaginatedResponse> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (status) params.set('status', status);
+  const resp = await fetch(`${BASE}/results?${params}`);
   return resp.json();
+}
+
+export async function getResults(): Promise<PaginatedResponse> {
+  return getResultsPage(1, 50);
 }
 
 export async function updateCell(
