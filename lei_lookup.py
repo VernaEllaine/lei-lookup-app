@@ -227,6 +227,14 @@ def _web_search_lei(company_name: str) -> list[dict]:
             continue
 
         confidence = _compute_confidence(company_name, legal_name)
+
+        # Filter out unrelated entities by checking name similarity
+        query_core = _extract_core_name(company_name).lower()
+        legal_core = _extract_core_name(legal_name).lower()
+        score = fuzz.token_sort_ratio(query_core, legal_core)
+        if score < _FUZZY_THRESHOLD:
+            continue
+
         results.append({
             "lei": attrs.get("lei", ""),
             "legal_name": legal_name,
