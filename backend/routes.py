@@ -8,6 +8,8 @@ import io
 import json
 import os
 import sys
+import uuid
+from dataclasses import dataclass, field
 
 import requests
 from fastapi import APIRouter, File, Query, UploadFile
@@ -27,13 +29,7 @@ from backend.worker import run_lookup
 
 router = APIRouter(prefix="/api")
 
-# In-memory state
-_input_headers: list[str] = []
-_rows: list[dict] = []
-_name_column: str = ""
-_running: bool = False
-
-# Shared cache manager
+# Shared cache manager (global across sessions)
 cache = CacheManager()
 
 # Import detect helper
@@ -46,71 +42,102 @@ LEI_FIELDS = [
 ]
 
 
-def _build_summary() -> dict:
-    s = database.compute_summary()
+# ---------------------------------------------------------------------------
+# Per-session state
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SessionState:
+    input_headers: list[str] = field(default_factory=list)
+    rows: list[dict] = field(default_factory=list)
+    name_column: str = ""
+    running: bool = False
+
+
+_sessions: dict[str, SessionState] = {}
+
+
+def _get_session(session_id: str) -> SessionState | None:
+    return _sessions.get(session_id)
+
+
+def _build_summary(session_id: str) -> dict:
+    s = database.compute_summary(session_id)
     s["cache_size"] = cache.size
     return s
 
 
-@router.post("/upload", response_model=UploadResponse)
-async def upload_csv(file: UploadFile = File(...)):
-    global _input_headers, _rows, _name_column, _running
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
-    if _running:
-        return UploadResponse(headers=[], row_count=0, detected_column=None)
+@router.post("/upload")
+async def upload_csv(file: UploadFile = File(...)):
+    session_id = uuid.uuid4().hex
+    session = SessionState()
+    _sessions[session_id] = session
 
     content = await file.read()
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
-    _input_headers = list(reader.fieldnames or [])
-    _rows = list(reader)
+    session.input_headers = list(reader.fieldnames or [])
+    session.rows = list(reader)
 
-    detected = _detect_name_column(_input_headers)
-    _name_column = detected or ""
+    detected = _detect_name_column(session.input_headers)
+    session.name_column = detected or ""
 
     # Store rows in database
-    database.clear_results()
+    database.clear_results(session_id)
     db_rows = []
-    for row in _rows:
+    for row in session.rows:
         r = dict(row)
-        r["_entity_name"] = r.get(_name_column, "").strip() if _name_column else ""
+        r["_entity_name"] = r.get(session.name_column, "").strip() if session.name_column else ""
         db_rows.append(r)
-    database.bulk_insert_results(db_rows)
+    database.bulk_insert_results(db_rows, session_id)
 
-    return UploadResponse(
-        headers=_input_headers,
-        row_count=len(_rows),
-        detected_column=detected,
-    )
+    return {
+        "session_id": session_id,
+        "headers": session.input_headers,
+        "row_count": len(session.rows),
+        "detected_column": detected,
+    }
 
 
 @router.get("/lookup")
-async def start_lookup(column: str = Query(...)):
-    global _running, _name_column
-
-    if _running:
+async def start_lookup(
+    column: str = Query(...),
+    session_id: str = Query(...),
+):
+    session = _get_session(session_id)
+    if session is None:
         return StreamingResponse(
-            iter(["data: {\"error\": \"Lookup already running\"}\n\n"]),
+            iter(['data: {"error": "Invalid session"}\n\n']),
             media_type="text/event-stream",
         )
 
-    if not _rows:
+    if session.running:
         return StreamingResponse(
-            iter(["data: {\"error\": \"No CSV uploaded\"}\n\n"]),
+            iter(['data: {"error": "Lookup already running"}\n\n']),
             media_type="text/event-stream",
         )
 
-    _name_column = column
-    _running = True
+    if not session.rows:
+        return StreamingResponse(
+            iter(['data: {"error": "No CSV uploaded"}\n\n']),
+            media_type="text/event-stream",
+        )
+
+    session.name_column = column
+    session.running = True
 
     queue: asyncio.Queue = asyncio.Queue()
 
     async def event_generator():
-        global _running
-
-        total = len(_rows)
+        total = len(session.rows)
         received = 0
-        task = asyncio.create_task(run_lookup(_rows, column, cache, queue))
+        task = asyncio.create_task(
+            run_lookup(session.rows, column, cache, queue, session_id)
+        )
 
         try:
             while received < total:
@@ -131,8 +158,8 @@ async def start_lookup(column: str = Query(...)):
             task.cancel()
             raise
         finally:
-            _running = False
-            summary = _build_summary()
+            session.running = False
+            summary = _build_summary(session_id)
             yield f"event: summary\ndata: {json.dumps(summary)}\n\n"
 
     return StreamingResponse(
@@ -151,14 +178,15 @@ async def get_results(
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=200000),
     status: str | None = Query(None),
+    session_id: str = Query(""),
 ):
-    result = database.get_results_page(page, page_size, status)
+    result = database.get_results_page(page, page_size, status, session_id=session_id)
     return {
         "rows": result["rows"],
         "total": result["total"],
         "page": result["page"],
         "page_size": result["page_size"],
-        "summary": _build_summary(),
+        "summary": _build_summary(session_id),
     }
 
 
@@ -200,9 +228,11 @@ async def update_cell(row_id: int, update: CellUpdate):
             })
             cache.flush()
 
-    database.update_result(row_id, db_update)
+    database.update_result_by_id(row_id, db_update)
     updated_row = database.get_result_by_id(row_id)
-    return {"row": updated_row, "summary": _build_summary()}
+    # Derive session_id from the row's session
+    sid = _session_id_for_row(row_id)
+    return {"row": updated_row, "summary": _build_summary(sid)}
 
 
 @router.put("/results/{row_id}/validate-lei")
@@ -242,7 +272,7 @@ async def validate_lei(row_id: int):
         )
         needs_confirmation = score < 50
 
-        database.update_result(row_id, {
+        database.update_result_by_id(row_id, {
             "legal_name": legal_name,
             "jurisdiction": jurisdiction,
             "status": status,
@@ -274,23 +304,24 @@ async def validate_lei(row_id: int):
 
 
 @router.post("/confirm-all")
-async def confirm_all():
-    count = database.confirm_reviewed_rows()
-    # Also update cache for confirmed rows
-    return {"confirmed": count, "summary": _build_summary()}
+async def confirm_all(session_id: str = Query("")):
+    count = database.confirm_reviewed_rows(session_id)
+    return {"confirmed": count, "summary": _build_summary(session_id)}
 
 
 @router.get("/export")
-async def export_csv():
-    all_rows = database.get_all_results_for_export()
+async def export_csv(session_id: str = Query("")):
+    session = _get_session(session_id)
+    all_rows = database.get_all_results_for_export(session_id)
     if not all_rows:
         return StreamingResponse(
             iter([""]),
             media_type="text/csv",
         )
 
+    input_headers = session.input_headers if session else []
     output = io.StringIO()
-    output_headers = list(_input_headers) + LEI_FIELDS
+    output_headers = list(input_headers) + LEI_FIELDS
     writer = csv.DictWriter(output, fieldnames=output_headers, extrasaction="ignore")
     writer.writeheader()
 
@@ -315,11 +346,22 @@ async def export_csv():
 
 
 @router.get("/cache/summary")
-async def cache_summary():
-    return {"cache_size": cache.size, "summary": _build_summary()}
+async def cache_summary(session_id: str = Query("")):
+    return {"cache_size": cache.size, "summary": _build_summary(session_id)}
 
 
 @router.delete("/cache")
-async def clear_cache():
+async def clear_cache(session_id: str = Query("")):
     cache.clear()
-    return {"message": "Cache cleared.", "summary": _build_summary()}
+    return {"message": "Cache cleared.", "summary": _build_summary(session_id)}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _session_id_for_row(row_id: int) -> str:
+    """Look up the session_id for a given row primary key."""
+    conn = database._get_conn()
+    row = conn.execute("SELECT session_id FROM results WHERE id = ?", (row_id,)).fetchone()
+    return row["session_id"] if row else ""

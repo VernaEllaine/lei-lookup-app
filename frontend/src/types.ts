@@ -31,6 +31,7 @@ export interface PaginatedResponse {
 }
 
 export interface UploadResponse {
+  session_id: string;
   headers: string[];
   row_count: number;
   detected_column: string | null;

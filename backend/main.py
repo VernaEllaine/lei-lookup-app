@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend import database
+from backend.rate_limiter import get_rate_limiter
 from backend.routes import cache, router
 
 app = FastAPI(title="LEI Lookup", version="1.0.0")
@@ -41,3 +42,11 @@ async def startup():
     cache.load()
     if cache.size > 0:
         threading.Thread(target=cache.validate, daemon=True).start()
+    limiter = get_rate_limiter()
+    await limiter.start()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    limiter = get_rate_limiter()
+    await limiter.stop()

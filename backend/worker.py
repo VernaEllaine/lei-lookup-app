@@ -1,9 +1,8 @@
-"""Background lookup worker with concurrent GLEIF lookups and DB persistence."""
+"""Background lookup worker with rate-limited GLEIF lookups and DB persistence."""
 
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
 import threading
@@ -17,13 +16,12 @@ from lei_lookup import GleifAPIError, _best_match, _classify, lookup_lei
 from backend import database
 from backend.cache import CacheManager
 from backend.models import RowResult, LookupProgress
+from backend.rate_limiter import get_rate_limiter
 
 LEI_FIELDS = [
     "lei", "lei_legal_name", "lei_jurisdiction", "lei_status",
     "lei_confidence", "lei_match_status", "lei_candidates",
 ]
-
-_CONCURRENCY = 5
 
 
 async def run_lookup(
@@ -31,14 +29,15 @@ async def run_lookup(
     column: str,
     cache: CacheManager,
     queue: asyncio.Queue,
+    session_id: str,
 ) -> None:
-    """Run LEI lookups for all rows concurrently, pushing progress to *queue*.
+    """Run LEI lookups for all rows, pushing progress to *queue*.
 
-    Uses a semaphore to limit concurrent GLEIF API calls.
-    Results are written to the SQLite database.
+    GLEIF API calls are funnelled through the global rate limiter so that
+    all concurrent sessions share a single token bucket (~60 req/min).
+    Results are written to the SQLite database scoped by *session_id*.
     """
-    loop = asyncio.get_event_loop()
-    sem = asyncio.Semaphore(_CONCURRENCY)
+    limiter = get_rate_limiter()
     completed_count = 0
     count_lock = threading.Lock()
     total = len(rows)
@@ -65,45 +64,42 @@ async def run_lookup(
                 out["lei_candidates"] = ""
                 match_status = cached["match_status"]
             else:
-                async with sem:
-                    # Small staggered delay to avoid bursting GLEIF rate limits
-                    await asyncio.sleep(0.2 * (i % _CONCURRENCY))
-                    try:
-                        result = await loop.run_in_executor(None, lookup_lei, company)
-                    except (requests.RequestException, GleifAPIError) as exc:
-                        out.update({h: "" for h in LEI_FIELDS})
-                        out["lei_match_status"] = f"ERROR: {exc}"
-                        match_status = "ERROR"
+                try:
+                    result = await limiter.execute(lookup_lei, company)
+                except (requests.RequestException, GleifAPIError) as exc:
+                    out.update({h: "" for h in LEI_FIELDS})
+                    out["lei_match_status"] = f"ERROR: {exc}"
+                    match_status = "ERROR"
+                else:
+                    match_status = _classify(result)
+                    best = _best_match(result)
+
+                    if match_status == "AUTO-MATCHED" and best:
+                        out["lei"] = best["lei"]
+                        out["lei_legal_name"] = best["legal_name"]
+                        out["lei_jurisdiction"] = best["jurisdiction"]
+                        out["lei_status"] = best["status"]
+                        out["lei_confidence"] = best["confidence"]
+                        out["lei_candidates"] = ""
+                    elif match_status == "REVIEW NEEDED":
+                        top = result["results"][0]
+                        out["lei"] = top["lei"]
+                        out["lei_legal_name"] = top["legal_name"]
+                        out["lei_jurisdiction"] = top["jurisdiction"]
+                        out["lei_status"] = top["status"]
+                        out["lei_confidence"] = top["confidence"]
+                        candidates = []
+                        for r in result["results"]:
+                            candidates.append(
+                                f"{r['legal_name']} | {r['lei']} | "
+                                f"{r['jurisdiction']} | {r['confidence']}"
+                            )
+                        out["lei_candidates"] = "; ".join(candidates)
                     else:
-                        match_status = _classify(result)
-                        best = _best_match(result)
+                        out.update({h: "" for h in LEI_FIELDS})
+                        out["lei_match_status"] = "NO MATCH"
 
-                        if match_status == "AUTO-MATCHED" and best:
-                            out["lei"] = best["lei"]
-                            out["lei_legal_name"] = best["legal_name"]
-                            out["lei_jurisdiction"] = best["jurisdiction"]
-                            out["lei_status"] = best["status"]
-                            out["lei_confidence"] = best["confidence"]
-                            out["lei_candidates"] = ""
-                        elif match_status == "REVIEW NEEDED":
-                            top = result["results"][0]
-                            out["lei"] = top["lei"]
-                            out["lei_legal_name"] = top["legal_name"]
-                            out["lei_jurisdiction"] = top["jurisdiction"]
-                            out["lei_status"] = top["status"]
-                            out["lei_confidence"] = top["confidence"]
-                            candidates = []
-                            for r in result["results"]:
-                                candidates.append(
-                                    f"{r['legal_name']} | {r['lei']} | "
-                                    f"{r['jurisdiction']} | {r['confidence']}"
-                                )
-                            out["lei_candidates"] = "; ".join(candidates)
-                        else:
-                            out.update({h: "" for h in LEI_FIELDS})
-                            out["lei_match_status"] = "NO MATCH"
-
-                        out["lei_match_status"] = match_status
+                    out["lei_match_status"] = match_status
 
         # Cache AUTO-MATCHED rows
         if match_status == "AUTO-MATCHED" and company:
@@ -119,7 +115,7 @@ async def run_lookup(
             "confidence": out.get("lei_confidence", ""),
             "match_status": out.get("lei_match_status", ""),
             "candidates": out.get("lei_candidates", ""),
-        })
+        }, session_id=session_id)
 
         row_result = RowResult(
             index=i,

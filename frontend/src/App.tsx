@@ -39,6 +39,7 @@ export default function App() {
   const [progressCurrent, setProgressCurrent] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
   const [statusText, setStatusText] = useState('');
+  const [sessionId, setSessionId] = useState('');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -47,10 +48,11 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<string>('');
 
   const closeRef = useRef<(() => void) | null>(null);
+  const sessionIdRef = useRef('');
 
   const fetchPage = useCallback(async (page: number, size: number, status?: string) => {
     const effectiveSize = size === 0 ? 100000 : size;
-    const r = await getResultsPage(page, effectiveSize, status || undefined);
+    const r = await getResultsPage(page, effectiveSize, status || undefined, sessionIdRef.current);
     setRows(r.rows);
     setTotalRows(r.total);
     setCurrentPage(r.page);
@@ -59,6 +61,8 @@ export default function App() {
 
   const handleUpload = useCallback(async (file: File) => {
     const resp = await uploadCsv(file);
+    setSessionId(resp.session_id);
+    sessionIdRef.current = resp.session_id;
     setHeaders(resp.headers);
     setSelectedColumn(resp.detected_column || resp.headers[0] || '');
     setRows([]);
@@ -70,7 +74,7 @@ export default function App() {
   }, []);
 
   const handleRun = useCallback(() => {
-    if (!selectedColumn) return;
+    if (!selectedColumn || !sessionId) return;
     setRunning(true);
     setRows([]);
     setProgressCurrent(0);
@@ -79,6 +83,7 @@ export default function App() {
 
     const close = startLookup(
       selectedColumn,
+      sessionId,
       (data) => {
         setProgressCurrent((prev) => prev + 1);
         setProgressTotal(data.total);
@@ -96,7 +101,7 @@ export default function App() {
       },
     );
     closeRef.current = close;
-  }, [selectedColumn, fetchPage, pageSize, statusFilter]);
+  }, [selectedColumn, sessionId, fetchPage, pageSize, statusFilter]);
 
   const handleCellSave = useCallback(
     async (index: number, field: string, value: string) => {
@@ -132,25 +137,25 @@ export default function App() {
   );
 
   const handleConfirmAll = useCallback(async () => {
-    const resp = await confirmAll();
+    const resp = await confirmAll(sessionId);
     setSummary(resp.summary);
     setRows((prev) =>
       prev.map((r) =>
         r.match_status === 'REVIEWED' ? { ...r, match_status: 'CONFIRMED' } : r,
       ),
     );
-  }, []);
+  }, [sessionId]);
 
   const handleExport = useCallback(() => {
-    exportCsv();
-  }, []);
+    exportCsv(sessionId);
+  }, [sessionId]);
 
   const handleClearCache = useCallback(async () => {
     if (!window.confirm('Delete all cached entities?')) return;
-    const resp = await clearCache();
+    const resp = await clearCache(sessionId);
     setSummary(resp.summary);
     setStatusText(resp.message);
-  }, []);
+  }, [sessionId]);
 
   const handlePageChange = useCallback(
     (page: number) => {

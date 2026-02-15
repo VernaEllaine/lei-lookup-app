@@ -11,11 +11,14 @@ export async function uploadCsv(file: File): Promise<UploadResponse> {
 
 export function startLookup(
   column: string,
+  sessionId: string,
   onProgress: (data: { index: number; total: number; company: string; row: RowResult; done: boolean }) => void,
   onSummary: (summary: Summary) => void,
   onError: (err: string) => void,
 ): () => void {
-  const es = new EventSource(`${BASE}/lookup?column=${encodeURIComponent(column)}`);
+  const es = new EventSource(
+    `${BASE}/lookup?column=${encodeURIComponent(column)}&session_id=${encodeURIComponent(sessionId)}`
+  );
 
   es.onmessage = (event) => {
     const data = JSON.parse(event.data);
@@ -47,18 +50,20 @@ export async function getResultsPage(
   page: number = 1,
   pageSize: number = 50,
   status?: string,
+  sessionId?: string,
 ): Promise<PaginatedResponse> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   });
   if (status) params.set('status', status);
+  if (sessionId) params.set('session_id', sessionId);
   const resp = await fetch(`${BASE}/results?${params}`);
   return resp.json();
 }
 
-export async function getResults(): Promise<PaginatedResponse> {
-  return getResultsPage(1, 50);
+export async function getResults(sessionId?: string): Promise<PaginatedResponse> {
+  return getResultsPage(1, 50, undefined, sessionId);
 }
 
 export async function updateCell(
@@ -83,16 +88,22 @@ export async function validateLei(
   return resp.json();
 }
 
-export async function confirmAll(): Promise<{ confirmed: number; summary: Summary }> {
-  const resp = await fetch(`${BASE}/confirm-all`, { method: 'POST' });
+export async function confirmAll(sessionId?: string): Promise<{ confirmed: number; summary: Summary }> {
+  const params = new URLSearchParams();
+  if (sessionId) params.set('session_id', sessionId);
+  const resp = await fetch(`${BASE}/confirm-all?${params}`, { method: 'POST' });
   return resp.json();
 }
 
-export function exportCsv(): void {
-  window.open(`${BASE}/export`, '_blank');
+export function exportCsv(sessionId?: string): void {
+  const params = new URLSearchParams();
+  if (sessionId) params.set('session_id', sessionId);
+  window.open(`${BASE}/export?${params}`, '_blank');
 }
 
-export async function clearCache(): Promise<{ message: string; summary: Summary }> {
-  const resp = await fetch(`${BASE}/cache`, { method: 'DELETE' });
+export async function clearCache(sessionId?: string): Promise<{ message: string; summary: Summary }> {
+  const params = new URLSearchParams();
+  if (sessionId) params.set('session_id', sessionId);
+  const resp = await fetch(`${BASE}/cache?${params}`, { method: 'DELETE' });
   return resp.json();
 }

@@ -34,7 +34,9 @@ def init_db() -> None:
     conn = _get_conn()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS results (
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL DEFAULT '',
+            row_index INTEGER NOT NULL DEFAULT 0,
             entity_name TEXT DEFAULT '',
             lei TEXT DEFAULT '',
             legal_name TEXT DEFAULT '',
@@ -46,6 +48,8 @@ def init_db() -> None:
             original_json TEXT DEFAULT '{}'
         );
         CREATE INDEX IF NOT EXISTS idx_results_match_status ON results(match_status);
+        CREATE INDEX IF NOT EXISTS idx_results_session ON results(session_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_results_session_row ON results(session_id, row_index);
 
         CREATE TABLE IF NOT EXISTS cache (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,31 +65,46 @@ def init_db() -> None:
     """)
     conn.commit()
 
+    # Migrate existing tables that lack the new columns
+    try:
+        conn.execute("SELECT session_id FROM results LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE results ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_results_session ON results(session_id)")
+        conn.commit()
+    try:
+        conn.execute("SELECT row_index FROM results LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE results ADD COLUMN row_index INTEGER NOT NULL DEFAULT 0")
+        # Backfill row_index from id for existing rows
+        conn.execute("UPDATE results SET row_index = id WHERE row_index = 0")
+        conn.commit()
+
 
 # ---------------------------------------------------------------------------
 # Results CRUD
 # ---------------------------------------------------------------------------
 
-def clear_results() -> None:
+def clear_results(session_id: str) -> None:
     conn = _get_conn()
-    conn.execute("DELETE FROM results")
+    conn.execute("DELETE FROM results WHERE session_id = ?", (session_id,))
     conn.commit()
 
 
-def bulk_insert_results(rows: list[dict]) -> None:
+def bulk_insert_results(rows: list[dict], session_id: str) -> None:
     """Insert rows from CSV upload (before lookup). Each dict has original CSV fields."""
     conn = _get_conn()
+    # Use a session-scoped row index (0-based within the session)
     conn.executemany(
-        """INSERT INTO results (id, entity_name, original_json)
-           VALUES (?, ?, ?)""",
-        [(i, row.get("_entity_name", ""), json.dumps(row, default=str)) for i, row in enumerate(rows)],
+        """INSERT INTO results (session_id, row_index, entity_name, original_json)
+           VALUES (?, ?, ?, ?)""",
+        [(session_id, i, row.get("_entity_name", ""), json.dumps(row, default=str)) for i, row in enumerate(rows)],
     )
     conn.commit()
 
 
-def update_result(row_id: int, data: dict[str, Any]) -> None:
-    """Update a result row with LEI lookup data or user edits."""
-    conn = _get_conn()
+def _build_update(data: dict[str, Any]) -> tuple[list[str], list[Any]]:
+    """Build SET clause fragments from a data dict."""
     fields = []
     values = []
     for key in ("entity_name", "lei", "legal_name", "jurisdiction", "status",
@@ -93,6 +112,27 @@ def update_result(row_id: int, data: dict[str, Any]) -> None:
         if key in data:
             fields.append(f"{key} = ?")
             values.append(data[key])
+    return fields, values
+
+
+def update_result(row_index: int, data: dict[str, Any], session_id: str) -> None:
+    """Update a result row by (session_id, row_index) — used by the worker."""
+    conn = _get_conn()
+    fields, values = _build_update(data)
+    if not fields:
+        return
+    values.extend([session_id, row_index])
+    conn.execute(
+        f"UPDATE results SET {', '.join(fields)} WHERE session_id = ? AND row_index = ?",
+        values,
+    )
+    conn.commit()
+
+
+def update_result_by_id(row_id: int, data: dict[str, Any]) -> None:
+    """Update a result row by primary key — used by route handlers."""
+    conn = _get_conn()
+    fields, values = _build_update(data)
     if not fields:
         return
     values.append(row_id)
@@ -112,14 +152,16 @@ def get_results_page(
     page: int = 1,
     page_size: int = 50,
     status_filter: str | None = None,
+    session_id: str = "",
 ) -> dict:
     """Return a page of results with total count."""
     conn = _get_conn()
-    where = ""
-    params: list[Any] = []
+    conditions = ["session_id = ?"]
+    params: list[Any] = [session_id]
     if status_filter:
-        where = "WHERE match_status = ?"
+        conditions.append("match_status = ?")
         params.append(status_filter)
+    where = "WHERE " + " AND ".join(conditions)
 
     # Get total count
     count_row = conn.execute(f"SELECT COUNT(*) FROM results {where}", params).fetchone()
@@ -159,7 +201,7 @@ def get_results_page(
     }
 
 
-def get_all_results_for_export() -> list[dict]:
+def get_all_results_for_export(session_id: str = "") -> list[dict]:
     """Return all results in table view order (status, then confidence desc, then id)."""
     conn = _get_conn()
     status_order = """
@@ -181,15 +223,17 @@ def get_all_results_for_export() -> list[dict]:
         END
     """
     rows = conn.execute(
-        f"SELECT * FROM results ORDER BY {status_order}, {confidence_order}, id"
+        f"SELECT * FROM results WHERE session_id = ? ORDER BY {status_order}, {confidence_order}, id",
+        (session_id,),
     ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-def compute_summary() -> dict:
+def compute_summary(session_id: str = "") -> dict:
     conn = _get_conn()
     rows = conn.execute(
-        "SELECT match_status, COUNT(*) as cnt FROM results GROUP BY match_status"
+        "SELECT match_status, COUNT(*) as cnt FROM results WHERE session_id = ? GROUP BY match_status",
+        (session_id,),
     ).fetchall()
     summary = {
         "auto_matched": 0,
@@ -219,19 +263,20 @@ def compute_summary() -> dict:
     return summary
 
 
-def confirm_reviewed_rows() -> int:
+def confirm_reviewed_rows(session_id: str = "") -> int:
     """Mark all REVIEWED rows as CONFIRMED. Returns count affected."""
     conn = _get_conn()
     cur = conn.execute(
-        "UPDATE results SET match_status = 'CONFIRMED' WHERE match_status = 'REVIEWED'"
+        "UPDATE results SET match_status = 'CONFIRMED' WHERE match_status = 'REVIEWED' AND session_id = ?",
+        (session_id,),
     )
     conn.commit()
     return cur.rowcount
 
 
-def results_count() -> int:
+def results_count(session_id: str = "") -> int:
     conn = _get_conn()
-    row = conn.execute("SELECT COUNT(*) FROM results").fetchone()
+    row = conn.execute("SELECT COUNT(*) FROM results WHERE session_id = ?", (session_id,)).fetchone()
     return row[0]
 
 
