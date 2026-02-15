@@ -160,6 +160,28 @@ _ABBREV_MAP = {
 }
 
 
+def _extract_legal_suffix(name: str) -> str | None:
+    """Return the normalized legal suffix if present, else None."""
+    m = _LEGAL_SUFFIXES.search(name.strip())
+    if not m:
+        return None
+    raw = re.sub(r"[.\s]", "", m.group(1)).lower()
+    # Normalize common variants to canonical forms
+    _CANONICAL = {
+        "spa": "spa", "sa": "sa", "se": "se",
+        "ag": "ag", "aktiengesellschaft": "ag",
+        "gmbh": "gmbh", "gesellschaftmitbeschränkterhaftung": "gmbh",
+        "gesellschaftmitbeschrankter haftung": "gmbh",
+        "sas": "sas", "saca": "saca",
+        "bv": "bv", "nv": "nv", "plc": "plc", "sau": "sau",
+        "srl": "srl", "ltd": "ltd", "limited": "ltd",
+        "inc": "inc", "incorporated": "inc",
+        "corp": "corp", "corporation": "corp",
+        "kgaa": "kgaa", "cokgaa": "kgaa",
+    }
+    return _CANONICAL.get(raw, raw)
+
+
 def _strip_legal_suffix(name: str) -> str:
     """Remove trailing legal-form suffix from a company name."""
     cleaned = _LEGAL_SUFFIXES.sub("", name).strip().rstrip(",-/")
@@ -489,11 +511,16 @@ def _compute_confidence(query: str, legal_name: str) -> str:
     q_core = _strip_legal_suffix(q).strip()
     name_core = _strip_legal_suffix(name).strip()
 
+    # Check if legal suffixes conflict (e.g. AG vs SRL = different entity)
+    q_suffix = _extract_legal_suffix(query)
+    name_suffix = _extract_legal_suffix(legal_name)
+    suffix_conflict = q_suffix and name_suffix and q_suffix != name_suffix
+
     if q == name or q_exp == name_exp:
-        return "high"
+        return "medium" if suffix_conflict else "high"
     # Core names match (ignoring legal suffix)
     if q_core and name_core and q_core == name_core:
-        return "high"
+        return "medium" if suffix_conflict else "high"
     # One contains the other fully
     if q in name or name in q or q_core in name_core or name_core in q_core:
         return "medium"
