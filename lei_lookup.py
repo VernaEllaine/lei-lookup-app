@@ -370,7 +370,7 @@ def _fuzzy_name_search(
             score = fuzz.token_sort_ratio(core_lower, legal_core)
             if score >= _FUZZY_THRESHOLD:
                 seen_leis.add(r["lei"])
-                r["confidence"] = "low"
+                r["confidence"] = _compute_confidence(company_name, r["legal_name"])
                 hits.append(r)
 
         # Stop searching once we have hits
