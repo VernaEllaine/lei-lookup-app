@@ -125,8 +125,8 @@ def get_results_page(
     count_row = conn.execute(f"SELECT COUNT(*) FROM results {where}", params).fetchone()
     total = count_row[0]
 
-    # Status sort order via CASE expression
-    order = """
+    # Status sort order via CASE expression, then confidence descending
+    status_order = """
         CASE match_status
             WHEN 'AUTO-MATCHED' THEN 0
             WHEN 'CONFIRMED' THEN 1
@@ -136,10 +136,18 @@ def get_results_page(
             ELSE 5
         END
     """
+    confidence_order = """
+        CASE confidence
+            WHEN 'high' THEN 0
+            WHEN 'medium' THEN 1
+            WHEN 'low' THEN 2
+            ELSE 3
+        END
+    """
     offset = (page - 1) * page_size
     params.extend([page_size, offset])
     rows = conn.execute(
-        f"SELECT * FROM results {where} ORDER BY {order}, id LIMIT ? OFFSET ?",
+        f"SELECT * FROM results {where} ORDER BY {status_order}, {confidence_order}, id LIMIT ? OFFSET ?",
         params,
     ).fetchall()
 
@@ -152,9 +160,9 @@ def get_results_page(
 
 
 def get_all_results_for_export() -> list[dict]:
-    """Return all results ordered by status for CSV export."""
+    """Return all results in table view order (status, then confidence desc, then id)."""
     conn = _get_conn()
-    order = """
+    status_order = """
         CASE match_status
             WHEN 'AUTO-MATCHED' THEN 0
             WHEN 'CONFIRMED' THEN 1
@@ -164,7 +172,17 @@ def get_all_results_for_export() -> list[dict]:
             ELSE 5
         END
     """
-    rows = conn.execute(f"SELECT * FROM results ORDER BY {order}, id").fetchall()
+    confidence_order = """
+        CASE confidence
+            WHEN 'high' THEN 0
+            WHEN 'medium' THEN 1
+            WHEN 'low' THEN 2
+            ELSE 3
+        END
+    """
+    rows = conn.execute(
+        f"SELECT * FROM results ORDER BY {status_order}, {confidence_order}, id"
+    ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
