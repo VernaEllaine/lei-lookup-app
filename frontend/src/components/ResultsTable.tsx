@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { RowResult } from '../types';
 import EditableCell from './EditableCell';
@@ -21,6 +21,17 @@ interface Props {
 
 export default function ResultsTable({ rows, onCellSave }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Track which cells are expanded: "rowIndex-field"
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -73,7 +84,11 @@ export default function ResultsTable({ rows, onCellSave }: Props) {
                   backgroundColor: bg,
                 }}
               >
-                <div className="virtual-cell col-entity">
+                <div
+                  className={`virtual-cell col-entity expandable${expanded.has(`${row.index}-entity`) ? ' expanded' : ''}`}
+                  onClick={() => toggleExpand(`${row.index}-entity`)}
+                  title={row.entity_name}
+                >
                   <EditableCell
                     value={row.entity_name}
                     field="entity_name"
@@ -88,7 +103,11 @@ export default function ResultsTable({ rows, onCellSave }: Props) {
                     onSave={(field, value) => onCellSave(row.index, field, value)}
                   />
                 </div>
-                <div className="virtual-cell col-legal">
+                <div
+                  className={`virtual-cell col-legal expandable${expanded.has(`${row.index}-legal`) ? ' expanded' : ''}`}
+                  onClick={() => toggleExpand(`${row.index}-legal`)}
+                  title={row.legal_name}
+                >
                   <EditableCell
                     value={row.legal_name}
                     field="legal_name"

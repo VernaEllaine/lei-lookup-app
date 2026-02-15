@@ -255,6 +255,13 @@ h1 {
   border-bottom: 2px solid #dee2e6;
   font-weight: 600;
   white-space: nowrap;
+  position: relative;
+}
+
+.results-header-table th.resizable {
+  overflow: hidden;
+  resize: horizontal;
+  min-width: 120px;
 }
 
 /* Virtual scroll container */
@@ -285,6 +292,15 @@ h1 {
   flex-shrink: 0;
 }
 
+.virtual-cell.expandable {
+  cursor: pointer;
+}
+
+.virtual-cell.expandable.expanded {
+  white-space: normal;
+  word-break: break-word;
+}
+
 /* Column widths — shared between header and virtual rows */
 .col-entity { width: 18%; }
 .col-lei { width: 22%; }
@@ -301,6 +317,12 @@ h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.expanded .editable-cell {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .editable-cell:not(.readonly):hover {
