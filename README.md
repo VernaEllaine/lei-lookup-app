@@ -33,44 +33,59 @@ Open `http://localhost:5173`
 
 | Module | Purpose |
 |--------|---------|
-| `backend/database.py` | SQLite layer — results table, cache table, pagination queries |
+| `backend/main.py` | App entry point, DB init, cache migration, rate limiter lifecycle |
+| `backend/routes.py` | FastAPI endpoints — upload, lookup (SSE), paginated results, export; per-session state |
+| `backend/worker.py` | GLEIF lookups via global rate limiter queue |
+| `backend/rate_limiter.py` | Token-bucket rate limiter (~60 req/min) shared across all sessions |
+| `backend/database.py` | SQLite layer — results table (session-scoped), cache table, pagination queries |
 | `backend/cache.py` | Cache manager with buffered writes (flushes every 100 entries) |
-| `backend/worker.py` | Concurrent GLEIF lookups via `asyncio.Semaphore(20)` + `gather` |
-| `backend/routes.py` | FastAPI endpoints — upload, lookup (SSE), paginated results, export |
-| `backend/main.py` | App entry point, DB init, cache migration on startup |
-| `lei_lookup.py` | Core GLEIF API client with retry/backoff logic |
+| `lei_lookup.py` | Core GLEIF API client with retry/backoff, fuzzy matching, confidence scoring |
 
 ### Frontend
 
 | Module | Purpose |
 |--------|---------|
-| `App.tsx` | Main app — pagination state, status filter, delta cell updates |
+| `App.tsx` | Main app — session state, pagination, status filter, delta cell updates |
 | `ResultsTable.tsx` | Virtual-scrolled table via `@tanstack/react-virtual` |
 | `EditableCell.tsx` | Inline-editable cell component |
-| `api.ts` | API client with `getResultsPage()` for paginated fetches |
+| `api.ts` | API client — all calls scoped by `session_id` |
 
 ### Key Design Decisions
 
-- **SQLite with WAL mode** allows concurrent reads during writes. Thread-local connections since SQLite can't share across threads.
-- **Concurrent lookups** (20 parallel) instead of sequential 0.5s/row. A 100-row file completes in seconds instead of minutes.
-- **Server-side pagination** with status filtering — only 50 rows sent per page, not the full dataset.
+- **Per-session isolation** — each CSV upload creates a UUID session. All data (rows, results, running state) is scoped by session ID, so multiple users can work concurrently without interference.
+- **Global rate limiter** — a token-bucket queue (1 token/sec, burst of 3) serializes all GLEIF API calls across all sessions, preventing 429 errors. The limiter runs as a background asyncio task started at app startup.
+- **SQLite with WAL mode** allows concurrent reads during writes. Thread-local connections since SQLite can't share across threads. Results table includes `session_id` and `row_index` columns for multi-session support.
+- **Server-side pagination** with status filtering — only 50-100 rows sent per page, not the full dataset.
 - **Delta updates** — cell edits return the single updated row + summary; no full re-fetch needed.
 - **Virtual scrolling** — only ~40-60 DOM rows rendered regardless of page size.
+- **Confidence scoring** — case-insensitive matching with legal suffix normalization (e.g. "S.M.E." matches "SME"), abbreviation expansion, and token overlap analysis. Fuzzy fallback matches use computed confidence instead of hardcoded "low".
 - **Cache migration** — existing `lei_cache.json` is automatically migrated to SQLite on first startup (original renamed to `.bak`).
 
 ## API Endpoints
 
+All endpoints that return session-scoped data accept a `session_id` query parameter.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/upload` | Upload CSV file |
-| GET | `/api/lookup?column=` | Start lookup (SSE stream) |
-| GET | `/api/results?page=&page_size=&status=` | Paginated results |
+| POST | `/api/upload` | Upload CSV file; returns `session_id` |
+| GET | `/api/lookup?column=&session_id=` | Start lookup (SSE stream) |
+| GET | `/api/results?page=&page_size=&status=&session_id=` | Paginated results |
 | PUT | `/api/results/{id}` | Update a cell (delta) |
 | PUT | `/api/results/{id}/validate-lei` | Validate LEI against GLEIF |
-| POST | `/api/confirm-all` | Confirm all reviewed rows |
-| GET | `/api/export` | Export results as CSV |
-| GET | `/api/cache/summary` | Cache stats |
-| DELETE | `/api/cache` | Clear cache |
+| POST | `/api/confirm-all?session_id=` | Confirm all reviewed rows |
+| GET | `/api/export?session_id=` | Export results as CSV |
+| GET | `/api/cache/summary?session_id=` | Cache stats |
+| DELETE | `/api/cache?session_id=` | Clear cache |
+
+### Data Flow
+
+```
+User A: POST /upload -> session_id=abc -> GET /lookup?session_id=abc&column=...
+User B: POST /upload -> session_id=xyz -> GET /lookup?session_id=xyz&column=...
+
+Both users' lookup_lei() calls -> global rate limiter queue (FIFO, ~1/sec)
+Each user gets own SSE stream with progress for their session only
+```
 
 ## Docker
 
