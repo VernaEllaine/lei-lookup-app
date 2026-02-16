@@ -4,3 +4,4 @@ python-multipart
 rapidfuzz
 requests
 duckduckgo-search
+openpyxl

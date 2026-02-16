@@ -170,6 +170,39 @@ h1 {
   gap: 8px;
 }
 
+.export-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.export-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  min-width: 140px;
+  margin-top: 2px;
+}
+
+.export-dropdown-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.export-dropdown-menu button:hover {
+  background: #f0f0f0;
+}
+
 /* Table Controls: Filter + Pagination */
 .table-controls {
   display: flex;

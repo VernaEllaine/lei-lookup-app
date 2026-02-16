@@ -345,6 +345,48 @@ async def export_csv(session_id: str = Query("")):
     )
 
 
+@router.get("/export-xlsx")
+async def export_xlsx(session_id: str = Query("")):
+    session = _get_session(session_id)
+    all_rows = database.get_all_results_for_export(session_id)
+    if not all_rows:
+        return StreamingResponse(
+            iter([b""]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    import openpyxl
+
+    input_headers = session.input_headers if session else []
+    output_headers = list(input_headers) + LEI_FIELDS
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(output_headers)
+
+    for row_data in all_rows:
+        original = row_data.get("original", {})
+        out = dict(original)
+        out["lei"] = row_data["lei"]
+        out["lei_legal_name"] = row_data["legal_name"]
+        out["lei_jurisdiction"] = row_data["jurisdiction"]
+        out["lei_status"] = row_data["status"]
+        out["lei_confidence"] = row_data["confidence"]
+        out["lei_match_status"] = row_data["match_status"]
+        out["lei_candidates"] = row_data["candidates"]
+        ws.append([out.get(h, "") for h in output_headers])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=lei_results.xlsx"},
+    )
+
+
 @router.get("/cache/summary")
 async def cache_summary(session_id: str = Query("")):
     return {"cache_size": cache.size, "summary": _build_summary(session_id)}

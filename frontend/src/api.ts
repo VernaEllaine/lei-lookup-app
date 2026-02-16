@@ -101,6 +101,12 @@ export function exportCsv(sessionId?: string): void {
   window.open(`${BASE}/export?${params}`, '_blank');
 }
 
+export function exportXlsx(sessionId?: string): void {
+  const params = new URLSearchParams();
+  if (sessionId) params.set('session_id', sessionId);
+  window.open(`${BASE}/export-xlsx?${params}`, '_blank');
+}
+
 export async function clearCache(sessionId?: string): Promise<{ message: string; summary: Summary }> {
   const params = new URLSearchParams();
   if (sessionId) params.set('session_id', sessionId);

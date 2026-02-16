@@ -1,14 +1,29 @@
+import { useState, useRef, useEffect } from 'react';
 import type { Summary } from '../types';
 
 interface Props {
   summary: Summary;
   onConfirmAll: () => void;
-  onExport: () => void;
+  onExportCsv: () => void;
+  onExportXlsx: () => void;
   onClearCache: () => void;
   disabled: boolean;
 }
 
-export default function SummaryBar({ summary, onConfirmAll, onExport, onClearCache, disabled }: Props) {
+export default function SummaryBar({ summary, onConfirmAll, onExportCsv, onExportXlsx, onClearCache, disabled }: Props) {
+  const [exportOpen, setExportOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <div className="summary-bar">
       <div className="summary-counts">
@@ -28,13 +43,21 @@ export default function SummaryBar({ summary, onConfirmAll, onExport, onClearCac
         >
           Confirm All
         </button>
-        <button
-          className="btn"
-          onClick={onExport}
-          disabled={disabled || summary.total === 0}
-        >
-          Export CSV
-        </button>
+        <div className="export-dropdown" ref={dropdownRef}>
+          <button
+            className="btn"
+            onClick={() => setExportOpen(!exportOpen)}
+            disabled={disabled || summary.total === 0}
+          >
+            Export ▾
+          </button>
+          {exportOpen && (
+            <div className="export-dropdown-menu">
+              <button onClick={() => { onExportCsv(); setExportOpen(false); }}>Export CSV</button>
+              <button onClick={() => { onExportXlsx(); setExportOpen(false); }}>Export XLSX</button>
+            </div>
+          )}
+        </div>
         <button className="btn btn-danger" onClick={onClearCache} disabled={disabled}>
           Clear Cache
         </button>

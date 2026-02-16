@@ -8,6 +8,7 @@ import {
   validateLei,
   confirmAll,
   exportCsv,
+  exportXlsx,
   clearCache,
 } from './api';
 import FileUpload from './components/FileUpload';
@@ -146,8 +147,12 @@ export default function App() {
     );
   }, [sessionId]);
 
-  const handleExport = useCallback(() => {
+  const handleExportCsv = useCallback(() => {
     exportCsv(sessionId);
+  }, [sessionId]);
+
+  const handleExportXlsx = useCallback(() => {
+    exportXlsx(sessionId);
   }, [sessionId]);
 
   const handleClearCache = useCallback(async () => {
@@ -209,7 +214,8 @@ export default function App() {
       <SummaryBar
         summary={summary}
         onConfirmAll={handleConfirmAll}
-        onExport={handleExport}
+        onExportCsv={handleExportCsv}
+        onExportXlsx={handleExportXlsx}
         onClearCache={handleClearCache}
         disabled={running}
       />
