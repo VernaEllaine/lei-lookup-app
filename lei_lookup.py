@@ -245,7 +245,7 @@ def _web_search_lei(company_name: str) -> list[dict]:
         status = entity.get("status", "")
         reg_status = registration.get("status", "")
 
-        if status != "ACTIVE" and reg_status != "ISSUED":
+        if status != "ACTIVE" or reg_status != "ISSUED":
             continue
 
         confidence = _compute_confidence(company_name, legal_name)
@@ -429,7 +429,7 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
             })
         return [
             r for r in hits
-            if r["status"] == "ACTIVE" or r["registration_status"] == "ISSUED"
+            if r["status"] == "ACTIVE" and r["registration_status"] == "ISSUED"
         ]
 
     results = _search(company_name)

@@ -154,7 +154,7 @@ class CacheManager:
                     attrs = record.get("attributes", {})
                     entity_status = attrs.get("entity", {}).get("status", "")
                     reg_status = attrs.get("registration", {}).get("status", "")
-                    if entity_status == "ACTIVE" or reg_status == "ISSUED":
+                    if entity_status == "ACTIVE" and reg_status == "ISSUED":
                         active.add(record.get("id", ""))
             return active
 

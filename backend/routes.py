@@ -262,8 +262,15 @@ async def validate_lei(row_id: int):
         attr = data.get("attributes", {}).get("entity", {})
         legal_name = attr.get("legalName", {}).get("name", "")
         jurisdiction = attr.get("jurisdiction", "")
+        status = attr.get("status", "")
         reg = data.get("attributes", {}).get("registration", {})
-        status = reg.get("status", "")
+        reg_status = reg.get("status", "")
+
+        if status != "ACTIVE" or reg_status != "ISSUED":
+            return ValidateLeiResponse(
+                valid=False,
+                message=f"LEI '{lei_code}' is not active (entity: {status}, registration: {reg_status}).",
+            )
 
         score = (
             fuzz.token_sort_ratio(entity_name.lower(), legal_name.lower())
