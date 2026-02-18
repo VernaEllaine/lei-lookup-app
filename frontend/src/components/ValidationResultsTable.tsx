@@ -15,9 +15,10 @@ const OVERSCAN = 10;
 
 interface Props {
   rows: ValidationRowResult[];
+  onAccept?: (rowIndex: number) => void;
 }
 
-export default function ValidationResultsTable({ rows }: Props) {
+export default function ValidationResultsTable({ rows, onAccept }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -66,6 +67,7 @@ export default function ValidationResultsTable({ rows }: Props) {
             <th className="vcol-slei">Suggested LEI</th>
             <th className="vcol-slegal">Suggested Legal Name</th>
             <th className="vcol-sconf">Confidence</th>
+            <th className="vcol-action">Action</th>
           </tr>
         </thead>
       </table>
@@ -104,6 +106,16 @@ export default function ValidationResultsTable({ rows }: Props) {
                 {cell(row, 'slei', 'vcol-slei', row.suggested_lei)}
                 {cell(row, 'slegal', 'vcol-slegal', row.suggested_legal_name)}
                 {cell(row, 'sconf', 'vcol-sconf', row.suggested_confidence)}
+                <div className="virtual-cell vcol-action">
+                  {row.suggested_lei && onAccept && (
+                    <button
+                      className="btn btn-accept"
+                      onClick={() => onAccept(row.index)}
+                    >
+                      Accept
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

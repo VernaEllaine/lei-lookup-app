@@ -414,14 +414,15 @@ h1 {
 }
 
 /* Validation table column widths */
-.vcol-entity { width: 16%; }
-.vcol-lei { width: 16%; }
-.vcol-estatus { width: 9%; }
-.vcol-rstatus { width: 9%; }
-.vcol-flag { width: 8%; }
-.vcol-slei { width: 16%; }
-.vcol-slegal { width: 16%; }
-.vcol-sconf { width: 10%; }
+.vcol-entity { width: 15%; }
+.vcol-lei { width: 15%; }
+.vcol-estatus { width: 8%; }
+.vcol-rstatus { width: 8%; }
+.vcol-flag { width: 7%; }
+.vcol-slei { width: 15%; }
+.vcol-slegal { width: 15%; }
+.vcol-sconf { width: 9%; }
+.vcol-action { width: 8%; }
 
 .validation-flag {
   font-weight: 600;
@@ -430,6 +431,21 @@ h1 {
 }
 
 /* Validation summary badges */
+.btn-accept {
+  padding: 2px 10px;
+  font-size: 12px;
+  background: #28a745;
+  color: #fff;
+  border: 1px solid #28a745;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn-accept:hover {
+  background: #218838;
+  border-color: #218838;
+}
+
 .badge.validation-ok { background: #d4edda; color: #155724; }
 .badge.validation-lapsed { background: #fff3cd; color: #856404; }
 .badge.validation-invalid { background: #f8d7da; color: #721c24; }

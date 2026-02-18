@@ -585,6 +585,37 @@ async def get_validation_results(
     }
 
 
+@router.put("/validate/accept")
+async def accept_suggested_lei(
+    session_id: str = Query(...),
+    row_index: int = Query(...),
+):
+    """Accept a suggested LEI: copy suggestion → provided, mark OK."""
+    conn = database._get_conn()
+    row = conn.execute(
+        "SELECT suggested_lei FROM validation_results WHERE session_id = ? AND row_index = ?",
+        (session_id, row_index),
+    ).fetchone()
+    if row is None:
+        return {"error": "Row not found"}
+
+    suggested = row["suggested_lei"] or ""
+    if not suggested:
+        return {"error": "No suggested LEI to accept"}
+
+    database.update_validation_result(row_index, {
+        "provided_lei": suggested,
+        "entity_status": "ACTIVE",
+        "registration_status": "ISSUED",
+        "flag": "OK",
+        "suggested_lei": "",
+        "suggested_legal_name": "",
+        "suggested_confidence": "",
+    }, session_id)
+
+    return {"summary": database.compute_validation_summary(session_id)}
+
+
 @router.get("/validate/export")
 async def export_validation_csv(session_id: str = Query("")):
     all_rows = database.get_all_validation_results_for_export(session_id)

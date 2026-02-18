@@ -182,6 +182,18 @@ export async function getValidationResultsPage(
   return resp.json();
 }
 
+export async function acceptSuggestedLei(
+  sessionId: string,
+  rowIndex: number,
+): Promise<{ summary: ValidationSummary }> {
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    row_index: String(rowIndex),
+  });
+  const resp = await fetch(`${BASE}/validate/accept?${params}`, { method: 'PUT' });
+  return resp.json();
+}
+
 export function exportValidationCsv(sessionId?: string): void {
   const params = new URLSearchParams();
   if (sessionId) params.set('session_id', sessionId);
