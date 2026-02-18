@@ -30,6 +30,14 @@ from backend.validation_worker import run_validation
 
 router = APIRouter(prefix="/api")
 
+
+def _sniff_dialect(text: str) -> csv.Dialect:
+    """Auto-detect CSV delimiter (comma, semicolon, tab, etc.)."""
+    try:
+        return csv.Sniffer().sniff(text[:8192], delimiters=",;\t|")
+    except csv.Error:
+        return csv.excel  # default to comma
+
 # Shared cache manager (global across sessions)
 cache = CacheManager()
 
@@ -80,7 +88,8 @@ async def upload_csv(file: UploadFile = File(...)):
 
     content = await file.read()
     text = content.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
+    dialect = _sniff_dialect(text)
+    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
     session.input_headers = list(reader.fieldnames or [])
     session.rows = list(reader)
 
@@ -448,7 +457,8 @@ async def validate_upload_csv(file: UploadFile = File(...)):
 
     content = await file.read()
     text = content.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
+    dialect = _sniff_dialect(text)
+    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
     session.input_headers = list(reader.fieldnames or [])
     session.rows = list(reader)
 
