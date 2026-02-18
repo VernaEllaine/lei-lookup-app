@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ValidationRowResult } from '../types';
 
@@ -19,6 +19,16 @@ interface Props {
 
 export default function ValidationResultsTable({ rows }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -28,6 +38,20 @@ export default function ValidationResultsTable({ rows }: Props) {
   });
 
   if (rows.length === 0) return null;
+
+  const cell = (row: ValidationRowResult, field: string, cls: string, value: string) => {
+    const key = `${row.index}-${field}`;
+    const isExpanded = expanded.has(key);
+    return (
+      <div
+        className={`virtual-cell ${cls} expandable${isExpanded ? ' expanded' : ''}`}
+        title={value}
+        onClick={() => toggleExpand(key)}
+      >
+        {value}
+      </div>
+    );
+  };
 
   return (
     <div className="results-table-container">
@@ -70,30 +94,16 @@ export default function ValidationResultsTable({ rows }: Props) {
                   backgroundColor: bg,
                 }}
               >
-                <div className="virtual-cell vcol-entity" title={row.entity_name}>
-                  {row.entity_name}
-                </div>
-                <div className="virtual-cell vcol-lei" title={row.provided_lei}>
-                  {row.provided_lei}
-                </div>
-                <div className="virtual-cell vcol-estatus">
-                  {row.entity_status}
-                </div>
-                <div className="virtual-cell vcol-rstatus">
-                  {row.registration_status}
-                </div>
+                {cell(row, 'entity', 'vcol-entity', row.entity_name)}
+                {cell(row, 'lei', 'vcol-lei', row.provided_lei)}
+                {cell(row, 'estatus', 'vcol-estatus', row.entity_status)}
+                {cell(row, 'rstatus', 'vcol-rstatus', row.registration_status)}
                 <div className="virtual-cell vcol-flag validation-flag">
                   {row.flag}
                 </div>
-                <div className="virtual-cell vcol-slei" title={row.suggested_lei}>
-                  {row.suggested_lei}
-                </div>
-                <div className="virtual-cell vcol-slegal" title={row.suggested_legal_name}>
-                  {row.suggested_legal_name}
-                </div>
-                <div className="virtual-cell vcol-sconf">
-                  {row.suggested_confidence}
-                </div>
+                {cell(row, 'slei', 'vcol-slei', row.suggested_lei)}
+                {cell(row, 'slegal', 'vcol-slegal', row.suggested_legal_name)}
+                {cell(row, 'sconf', 'vcol-sconf', row.suggested_confidence)}
               </div>
             );
           })}
