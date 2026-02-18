@@ -578,6 +578,60 @@ def _best_match(result: dict) -> dict | None:
     return None
 
 
+def validate_single_lei(lei_code: str) -> dict:
+    """Validate a single LEI code against the GLEIF API.
+
+    Returns a dict with entity_status, registration_status, legal_name,
+    jurisdiction, and computed flag (OK/LAPSED/INVALID/NOT_FOUND/ERROR).
+    """
+    try:
+        payload = _api_get(
+            f"{GLEIF_BASE}/lei-records/{lei_code}",
+            params={},
+        )
+    except GleifAPIError as exc:
+        if exc.status_code == 404:
+            return {
+                "entity_status": "",
+                "registration_status": "",
+                "legal_name": "",
+                "jurisdiction": "",
+                "flag": "NOT_FOUND",
+            }
+        return {
+            "entity_status": "",
+            "registration_status": "",
+            "legal_name": "",
+            "jurisdiction": "",
+            "flag": "ERROR",
+        }
+
+    data = payload.get("data", {})
+    attrs = data.get("attributes", {})
+    entity = attrs.get("entity", {})
+    registration = attrs.get("registration", {})
+
+    entity_status = entity.get("status", "")
+    reg_status = registration.get("status", "")
+    legal_name = entity.get("legalName", {}).get("name", "")
+    jurisdiction = entity.get("jurisdiction", "")
+
+    if entity_status == "ACTIVE" and reg_status == "ISSUED":
+        flag = "OK"
+    elif reg_status == "LAPSED":
+        flag = "LAPSED"
+    else:
+        flag = "INVALID"
+
+    return {
+        "entity_status": entity_status,
+        "registration_status": reg_status,
+        "legal_name": legal_name,
+        "jurisdiction": jurisdiction,
+        "flag": flag,
+    }
+
+
 def _detect_name_column(headers: list[str]) -> str | None:
     """Guess which column holds the company name."""
     candidates = ["company_name", "company", "name", "entity_name", "entity",

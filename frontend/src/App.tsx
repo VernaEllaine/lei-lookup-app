@@ -16,6 +16,7 @@ import ColumnPicker from './components/ColumnPicker';
 import ProgressBar from './components/ProgressBar';
 import ResultsTable from './components/ResultsTable';
 import SummaryBar from './components/SummaryBar';
+import ValidationSection from './components/ValidationSection';
 
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 0]; // 0 = All
@@ -31,7 +32,11 @@ const emptySummary: Summary = {
   cache_size: 0,
 };
 
+type Tab = 'lookup' | 'validation';
+
 export default function App() {
+  const [activeTab, setActiveTab] = useState<Tab>('lookup');
+
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState('');
   const [rows, setRows] = useState<RowResult[]>([]);
@@ -193,66 +198,113 @@ export default function App() {
 
   return (
     <div className="app">
-      <h1>LEI Lookup</h1>
+      <h1>LEI Tools</h1>
 
-      <FileUpload onUpload={handleUpload} disabled={running} />
+      <div className="tab-bar">
+        <button
+          className={`tab-btn${activeTab === 'lookup' ? ' active' : ''}`}
+          onClick={() => setActiveTab('lookup')}
+        >
+          LEI Lookup
+        </button>
+        <button
+          className={`tab-btn${activeTab === 'validation' ? ' active' : ''}`}
+          onClick={() => setActiveTab('validation')}
+        >
+          LEI Validation
+        </button>
+      </div>
 
-      <ColumnPicker
-        headers={headers}
-        selected={selectedColumn}
-        onChange={setSelectedColumn}
-        onRun={handleRun}
-        disabled={running || headers.length === 0}
-      />
+      {activeTab === 'lookup' && (
+        <>
+          <FileUpload onUpload={handleUpload} disabled={running} />
 
-      <ProgressBar
-        current={progressCurrent}
-        total={progressTotal}
-        statusText={statusText}
-      />
+          <ColumnPicker
+            headers={headers}
+            selected={selectedColumn}
+            onChange={setSelectedColumn}
+            onRun={handleRun}
+            disabled={running || headers.length === 0}
+          />
 
-      <SummaryBar
-        summary={summary}
-        onConfirmAll={handleConfirmAll}
-        onExportCsv={handleExportCsv}
-        onExportXlsx={handleExportXlsx}
-        onClearCache={handleClearCache}
-        disabled={running}
-      />
+          <ProgressBar
+            current={progressCurrent}
+            total={progressTotal}
+            statusText={statusText}
+          />
 
-      {rows.length > 0 && !running && (
-        <div className="table-controls">
-          <div className="status-filter">
-            <label>Filter: </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => handleStatusFilterChange(e.target.value)}
-            >
-              <option value="">All</option>
-              <option value="AUTO-MATCHED">Auto-Matched</option>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="REVIEWED">Reviewed</option>
-              <option value="REVIEW NEEDED">Review Needed</option>
-              <option value="NO MATCH">No Match</option>
-            </select>
-          </div>
+          <SummaryBar
+            summary={summary}
+            onConfirmAll={handleConfirmAll}
+            onExportCsv={handleExportCsv}
+            onExportXlsx={handleExportXlsx}
+            onClearCache={handleClearCache}
+            disabled={running}
+          />
 
-          <div className="page-size-picker">
-            <label>Rows: </label>
-            <select
-              value={pageSize}
-              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            >
-              {PAGE_SIZE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt === 0 ? 'All' : opt}
-                </option>
-              ))}
-            </select>
-          </div>
+          {rows.length > 0 && !running && (
+            <div className="table-controls">
+              <div className="status-filter">
+                <label>Filter: </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => handleStatusFilterChange(e.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="AUTO-MATCHED">Auto-Matched</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="REVIEWED">Reviewed</option>
+                  <option value="REVIEW NEEDED">Review Needed</option>
+                  <option value="NO MATCH">No Match</option>
+                </select>
+              </div>
 
-          {showPagination && (
-            <div className="pagination">
+              <div className="page-size-picker">
+                <label>Rows: </label>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                >
+                  {PAGE_SIZE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt === 0 ? 'All' : opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {showPagination && (
+                <div className="pagination">
+                  <button
+                    className="btn"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage <= 1}
+                  >
+                    Prev
+                  </button>
+                  <span className="page-indicator">
+                    Page {currentPage} of {totalPages} ({totalRows} rows)
+                  </span>
+                  <button
+                    className="btn"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage >= totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+
+              {!showPagination && (
+                <span className="page-indicator">{totalRows} rows</span>
+              )}
+            </div>
+          )}
+
+          <ResultsTable rows={rows} onCellSave={handleCellSave} />
+
+          {rows.length > 0 && !running && showPagination && totalPages > 1 && (
+            <div className="pagination pagination-bottom">
               <button
                 className="btn"
                 onClick={() => handlePageChange(currentPage - 1)}
@@ -261,7 +313,7 @@ export default function App() {
                 Prev
               </button>
               <span className="page-indicator">
-                Page {currentPage} of {totalPages} ({totalRows} rows)
+                Page {currentPage} of {totalPages}
               </span>
               <button
                 className="btn"
@@ -272,36 +324,10 @@ export default function App() {
               </button>
             </div>
           )}
-
-          {!showPagination && (
-            <span className="page-indicator">{totalRows} rows</span>
-          )}
-        </div>
+        </>
       )}
 
-      <ResultsTable rows={rows} onCellSave={handleCellSave} />
-
-      {rows.length > 0 && !running && showPagination && totalPages > 1 && (
-        <div className="pagination pagination-bottom">
-          <button
-            className="btn"
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage <= 1}
-          >
-            Prev
-          </button>
-          <span className="page-indicator">
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            className="btn"
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-          >
-            Next
-          </button>
-        </div>
-      )}
+      {activeTab === 'validation' && <ValidationSection />}
     </div>
   );
 }

@@ -51,6 +51,23 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_results_session ON results(session_id);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_results_session_row ON results(session_id, row_index);
 
+        CREATE TABLE IF NOT EXISTS validation_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL DEFAULT '',
+            row_index INTEGER NOT NULL DEFAULT 0,
+            entity_name TEXT DEFAULT '',
+            provided_lei TEXT DEFAULT '',
+            entity_status TEXT DEFAULT '',
+            registration_status TEXT DEFAULT '',
+            flag TEXT DEFAULT '',
+            suggested_lei TEXT DEFAULT '',
+            suggested_legal_name TEXT DEFAULT '',
+            suggested_confidence TEXT DEFAULT '',
+            original_json TEXT DEFAULT '{}'
+        );
+        CREATE INDEX IF NOT EXISTS idx_vr_session ON validation_results(session_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_vr_session_row ON validation_results(session_id, row_index);
+
         CREATE TABLE IF NOT EXISTS cache (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_key TEXT NOT NULL UNIQUE,
@@ -379,6 +396,143 @@ def migrate_json_cache(json_path: str) -> int:
     except OSError:
         pass
     return len(entries)
+
+
+# ---------------------------------------------------------------------------
+# Validation Results CRUD
+# ---------------------------------------------------------------------------
+
+def clear_validation_results(session_id: str) -> None:
+    conn = _get_conn()
+    conn.execute("DELETE FROM validation_results WHERE session_id = ?", (session_id,))
+    conn.commit()
+
+
+def bulk_insert_validation_results(rows: list[dict], session_id: str) -> None:
+    """Insert rows from CSV upload for validation. Each dict has original CSV fields."""
+    conn = _get_conn()
+    conn.executemany(
+        """INSERT INTO validation_results
+           (session_id, row_index, entity_name, provided_lei, original_json)
+           VALUES (?, ?, ?, ?, ?)""",
+        [
+            (session_id, i, row.get("_entity_name", ""), row.get("_provided_lei", ""), json.dumps(row, default=str))
+            for i, row in enumerate(rows)
+        ],
+    )
+    conn.commit()
+
+
+def update_validation_result(row_index: int, data: dict[str, Any], session_id: str) -> None:
+    """Update a validation result row by (session_id, row_index)."""
+    conn = _get_conn()
+    fields = []
+    values = []
+    for key in ("entity_name", "provided_lei", "entity_status", "registration_status",
+                "flag", "suggested_lei", "suggested_legal_name", "suggested_confidence"):
+        if key in data:
+            fields.append(f"{key} = ?")
+            values.append(data[key])
+    if not fields:
+        return
+    values.extend([session_id, row_index])
+    conn.execute(
+        f"UPDATE validation_results SET {', '.join(fields)} WHERE session_id = ? AND row_index = ?",
+        values,
+    )
+    conn.commit()
+
+
+_FLAG_ORDER = """
+    CASE flag
+        WHEN 'LAPSED' THEN 0
+        WHEN 'INVALID' THEN 1
+        WHEN 'NOT_FOUND' THEN 2
+        WHEN 'ERROR' THEN 3
+        WHEN 'OK' THEN 4
+        ELSE 5
+    END
+"""
+
+
+def get_validation_results_page(
+    page: int = 1,
+    page_size: int = 50,
+    flag_filter: str | None = None,
+    session_id: str = "",
+) -> dict:
+    conn = _get_conn()
+    conditions = ["session_id = ?"]
+    params: list[Any] = [session_id]
+    if flag_filter:
+        conditions.append("flag = ?")
+        params.append(flag_filter)
+    where = "WHERE " + " AND ".join(conditions)
+
+    count_row = conn.execute(f"SELECT COUNT(*) FROM validation_results {where}", params).fetchone()
+    total = count_row[0]
+
+    offset = (page - 1) * page_size
+    params.extend([page_size, offset])
+    rows = conn.execute(
+        f"SELECT * FROM validation_results {where} ORDER BY {_FLAG_ORDER}, id LIMIT ? OFFSET ?",
+        params,
+    ).fetchall()
+
+    return {
+        "rows": [_vr_to_dict(r) for r in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+def get_all_validation_results_for_export(session_id: str = "") -> list[dict]:
+    conn = _get_conn()
+    rows = conn.execute(
+        f"SELECT * FROM validation_results WHERE session_id = ? ORDER BY {_FLAG_ORDER}, id",
+        (session_id,),
+    ).fetchall()
+    return [_vr_to_dict(r) for r in rows]
+
+
+def compute_validation_summary(session_id: str = "") -> dict:
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT flag, COUNT(*) as cnt FROM validation_results WHERE session_id = ? GROUP BY flag",
+        (session_id,),
+    ).fetchall()
+    summary = {"ok": 0, "lapsed": 0, "invalid": 0, "not_found": 0, "errors": 0, "total": 0}
+    for row in rows:
+        flag = row["flag"]
+        cnt = row["cnt"]
+        summary["total"] += cnt
+        if flag == "OK":
+            summary["ok"] = cnt
+        elif flag == "LAPSED":
+            summary["lapsed"] = cnt
+        elif flag == "INVALID":
+            summary["invalid"] = cnt
+        elif flag == "NOT_FOUND":
+            summary["not_found"] = cnt
+        elif flag == "ERROR":
+            summary["errors"] += cnt
+    return summary
+
+
+def _vr_to_dict(row: sqlite3.Row) -> dict:
+    """Convert a validation_results Row to a dict."""
+    return {
+        "index": row["row_index"],
+        "entity_name": row["entity_name"],
+        "provided_lei": row["provided_lei"],
+        "entity_status": row["entity_status"],
+        "registration_status": row["registration_status"],
+        "flag": row["flag"],
+        "suggested_lei": row["suggested_lei"],
+        "suggested_legal_name": row["suggested_legal_name"],
+        "suggested_confidence": row["suggested_confidence"],
+    }
 
 
 # ---------------------------------------------------------------------------

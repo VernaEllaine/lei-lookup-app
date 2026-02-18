@@ -12,6 +12,36 @@ h1 {
   color: #333;
 }
 
+/* Tab Bar */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.tab-btn {
+  padding: 10px 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn:hover {
+  color: #333;
+}
+
+.tab-btn.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+}
+
 /* Buttons */
 .btn {
   padding: 8px 16px;
@@ -382,3 +412,26 @@ h1 {
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* Validation table column widths */
+.vcol-entity { width: 16%; }
+.vcol-lei { width: 16%; }
+.vcol-estatus { width: 9%; }
+.vcol-rstatus { width: 9%; }
+.vcol-flag { width: 8%; }
+.vcol-slei { width: 16%; }
+.vcol-slegal { width: 16%; }
+.vcol-sconf { width: 10%; }
+
+.validation-flag {
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Validation summary badges */
+.badge.validation-ok { background: #d4edda; color: #155724; }
+.badge.validation-lapsed { background: #fff3cd; color: #856404; }
+.badge.validation-invalid { background: #f8d7da; color: #721c24; }
+.badge.validation-notfound { background: #f8d7da; color: #721c24; }
+.badge.validation-error { background: #f8d7da; color: #721c24; }

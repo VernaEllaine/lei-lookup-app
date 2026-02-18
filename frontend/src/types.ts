@@ -53,3 +53,52 @@ export interface ValidateLeiResponse {
   needs_confirmation: boolean;
   message: string;
 }
+
+// ---------------------------------------------------------------------------
+// LEI Validation (bulk LEI checking) types
+// ---------------------------------------------------------------------------
+
+export interface ValidationRowResult {
+  index: number;
+  entity_name: string;
+  provided_lei: string;
+  entity_status: string;
+  registration_status: string;
+  flag: string;
+  suggested_lei: string;
+  suggested_legal_name: string;
+  suggested_confidence: string;
+}
+
+export interface ValidationSummary {
+  ok: number;
+  lapsed: number;
+  invalid: number;
+  not_found: number;
+  errors: number;
+  total: number;
+}
+
+export interface ValidationProgress {
+  index: number;
+  total: number;
+  entity_name: string;
+  row: ValidationRowResult;
+  done: boolean;
+}
+
+export interface ValidationUploadResponse {
+  session_id: string;
+  headers: string[];
+  row_count: number;
+  detected_entity_column: string | null;
+  detected_lei_column: string | null;
+}
+
+export interface ValidationPaginatedResponse {
+  rows: ValidationRowResult[];
+  total: number;
+  page: number;
+  page_size: number;
+  summary: ValidationSummary;
+}

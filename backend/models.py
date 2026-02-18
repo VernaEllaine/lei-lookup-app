@@ -67,3 +67,38 @@ class ValidateLeiResponse(BaseModel):
     status: str = ""
     needs_confirmation: bool = False
     message: str = ""
+
+
+# ---------------------------------------------------------------------------
+# LEI Validation (bulk LEI checking) models
+# ---------------------------------------------------------------------------
+
+class ValidationRowResult(BaseModel):
+    """A single row result from the LEI validation workflow."""
+    index: int
+    entity_name: str = ""
+    provided_lei: str = ""
+    entity_status: str = ""
+    registration_status: str = ""
+    flag: str = ""  # OK, LAPSED, INVALID, NOT_FOUND, ERROR
+    suggested_lei: str = ""
+    suggested_legal_name: str = ""
+    suggested_confidence: str = ""
+
+
+class ValidationProgress(BaseModel):
+    """SSE event payload during validation."""
+    index: int
+    total: int
+    entity_name: str = ""
+    row: ValidationRowResult
+    done: bool = False
+
+
+class ValidationSummary(BaseModel):
+    ok: int = 0
+    lapsed: int = 0
+    invalid: int = 0
+    not_found: int = 0
+    errors: int = 0
+    total: int = 0
