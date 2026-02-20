@@ -98,7 +98,7 @@ function resultsToCsv(results: IsinResult[]): string {
 type Mode = 'manual' | 'csv';
 
 export default function IsinLookupSection() {
-  const [mode, setMode] = useState<Mode>('manual');
+  const [mode, setMode] = useState<Mode>('csv');
 
   // Manual mode
   const [input, setInput] = useState('');
@@ -215,16 +215,16 @@ export default function IsinLookupSection() {
       {/* Mode toggle */}
       <div className="isin-mode-toggle">
         <button
-          className={`isin-mode-btn${mode === 'manual' ? ' active' : ''}`}
-          onClick={() => setMode('manual')}
-        >
-          Manual Input
-        </button>
-        <button
           className={`isin-mode-btn${mode === 'csv' ? ' active' : ''}`}
           onClick={() => setMode('csv')}
         >
           CSV Import
+        </button>
+        <button
+          className={`isin-mode-btn${mode === 'manual' ? ' active' : ''}`}
+          onClick={() => setMode('manual')}
+        >
+          Manual Input
         </button>
       </div>
 
