@@ -807,22 +807,44 @@ async def isin_lookup(isins: str = Query(...)):
                 results.append({
                     "isin": isin, "lei": "", "legal_name": "", "country": "",
                     "entity_status": "", "registration_status": "",
-                    "security_name": "", "security_type": "",
+                    "security_name": "", "security_type": "", "match_source": "",
                     "error": f"ISIN lookup failed (HTTP {resp.status_code})",
                 })
                 continue
 
+            figi = openfigi_map.get(isin, {})
             records = resp.json().get("data", [])
+
+            # ---- Name fallback: if GLEIF has no ISIN mapping, try issuer name ----
+            if not records and figi.get("security_name"):
+                try:
+                    name_resp = requests.get(
+                        "https://api.gleif.org/api/v1/lei-records",
+                        params={"filter[entity.legalName]": figi["security_name"], "page[size]": "5"},
+                        headers={"Accept": "application/vnd.api+json"},
+                        timeout=15,
+                    )
+                    if name_resp.status_code == 200:
+                        records = name_resp.json().get("data", [])
+                        match_source = "name"
+                    else:
+                        match_source = ""
+                except Exception:
+                    match_source = ""
+            else:
+                match_source = "isin" if records else ""
+
             if not records:
                 results.append({
                     "isin": isin, "lei": "", "legal_name": "", "country": "",
                     "entity_status": "", "registration_status": "",
-                    "security_name": "", "security_type": "",
+                    "security_name": figi.get("security_name", ""),
+                    "security_type": figi.get("security_type", ""),
+                    "match_source": "",
                     "error": "No LEI found for this ISIN",
                 })
                 continue
 
-            figi = openfigi_map.get(isin, {})
             for rec in records:
                 lei = rec.get("id", "")
                 if not lei or lei in seen_leis:
@@ -842,6 +864,7 @@ async def isin_lookup(isins: str = Query(...)):
                     "country": entity.get("jurisdiction", ""),
                     "entity_status": entity.get("status", ""),
                     "registration_status": registration.get("status", ""),
+                    "match_source": match_source,
                     "error": "",
                 })
 
@@ -849,7 +872,7 @@ async def isin_lookup(isins: str = Query(...)):
             results.append({
                 "isin": isin, "lei": "", "legal_name": "", "country": "",
                 "entity_status": "", "registration_status": "",
-                "security_name": "", "security_type": "",
+                "security_name": "", "security_type": "", "match_source": "",
                 "error": str(exc),
             })
 
@@ -864,11 +887,13 @@ async def export_isin_xlsx(payload: dict):
     results = payload.get("results", [])
     headers = [
         "ISIN", "Security Name", "Security Type", "LEI",
-        "Legal Entity Name", "Country", "Entity Status", "Registration Status", "Error",
+        "Legal Entity Name", "Country", "Entity Status", "Registration Status",
+        "Match Source", "Error",
     ]
     keys = [
         "isin", "security_name", "security_type", "lei",
-        "legal_name", "country", "entity_status", "registration_status", "error",
+        "legal_name", "country", "entity_status", "registration_status",
+        "match_source", "error",
     ]
 
     wb = openpyxl.Workbook()

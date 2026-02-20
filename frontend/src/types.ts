@@ -155,6 +155,7 @@ export interface IsinResult {
   country: string;
   entity_status: string;
   registration_status: string;
+  match_source: string;
   error: string;
 }
 
