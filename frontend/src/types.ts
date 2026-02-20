@@ -102,3 +102,21 @@ export interface ValidationPaginatedResponse {
   page_size: number;
   summary: ValidationSummary;
 }
+
+// ---------------------------------------------------------------------------
+// ISIN Lookup types
+// ---------------------------------------------------------------------------
+
+export interface IsinResult {
+  isin: string;
+  lei: string;
+  legal_name: string;
+  country: string;
+  entity_status: string;
+  registration_status: string;
+  error: string;
+}
+
+export interface IsinLookupResponse {
+  results: IsinResult[];
+}

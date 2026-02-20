@@ -451,3 +451,91 @@ h1 {
 .badge.validation-invalid { background: #f8d7da; color: #721c24; }
 .badge.validation-notfound { background: #f8d7da; color: #721c24; }
 .badge.validation-error { background: #f8d7da; color: #721c24; }
+
+/* ISIN Lookup */
+.isin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.isin-desc {
+  margin: 0;
+  color: #555;
+  font-size: 14px;
+}
+
+.isin-input-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.isin-textarea {
+  flex: 1;
+  max-width: 480px;
+  padding: 8px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.isin-textarea:focus {
+  outline: none;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+}
+
+.isin-error {
+  margin: 0;
+  color: #721c24;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.isin-results,
+.isin-not-found {
+  overflow-x: auto;
+}
+
+.isin-not-found h4 {
+  margin: 0 0 8px;
+  color: #721c24;
+  font-size: 14px;
+}
+
+.isin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.isin-table th {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.isin-table td {
+  border: 1px solid #dee2e6;
+  padding: 7px 12px;
+  vertical-align: middle;
+}
+
+.isin-table-error td {
+  background: #fff8f8;
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}

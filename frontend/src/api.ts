@@ -1,6 +1,7 @@
 import type {
   UploadResponse, RowResult, Summary, PaginatedResponse, ValidateLeiResponse,
   ValidationUploadResponse, ValidationSummary, ValidationPaginatedResponse,
+  IsinLookupResponse,
 } from './types';
 
 const BASE = '/api';
@@ -204,4 +205,14 @@ export function exportValidationXlsx(sessionId?: string): void {
   const params = new URLSearchParams();
   if (sessionId) params.set('session_id', sessionId);
   window.open(`${BASE}/validate/export-xlsx?${params}`, '_blank');
+}
+
+// ---------------------------------------------------------------------------
+// ISIN Lookup API
+// ---------------------------------------------------------------------------
+
+export async function lookupIsins(isins: string): Promise<IsinLookupResponse> {
+  const params = new URLSearchParams({ isins });
+  const resp = await fetch(`${BASE}/isin-lookup?${params}`);
+  return resp.json();
 }

@@ -17,6 +17,7 @@ import ProgressBar from './components/ProgressBar';
 import ResultsTable from './components/ResultsTable';
 import SummaryBar from './components/SummaryBar';
 import ValidationSection from './components/ValidationSection';
+import IsinLookupSection from './components/IsinLookupSection';
 
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 0]; // 0 = All
@@ -32,7 +33,7 @@ const emptySummary: Summary = {
   cache_size: 0,
 };
 
-type Tab = 'lookup' | 'validation';
+type Tab = 'lookup' | 'validation' | 'isin';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('lookup');
@@ -213,6 +214,12 @@ export default function App() {
         >
           LEI Validation
         </button>
+        <button
+          className={`tab-btn${activeTab === 'isin' ? ' active' : ''}`}
+          onClick={() => setActiveTab('isin')}
+        >
+          ISIN Lookup
+        </button>
       </div>
 
       {activeTab === 'lookup' && (
@@ -328,6 +335,8 @@ export default function App() {
       )}
 
       {activeTab === 'validation' && <ValidationSection />}
+
+      {activeTab === 'isin' && <IsinLookupSection />}
     </div>
   );
 }
