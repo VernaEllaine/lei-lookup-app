@@ -12,9 +12,9 @@ import ProgressBar from './ProgressBar';
 const BATCH_SIZE = 5;
 
 const FLAG_COLORS: Record<string, string> = {
-  ACTIVE: '#d4edda',
-  INACTIVE: '#f8d7da',
-  ANNULLED: '#f8d7da',
+  ACTIVE: '#eafaf1',
+  INACTIVE: '#fdf2f1',
+  ANNULLED: '#fdf2f1',
 };
 
 function statusColor(entityStatus: string): string {

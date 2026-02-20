@@ -3,11 +3,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ValidationRowResult } from '../types';
 
 const FLAG_COLORS: Record<string, string> = {
-  OK: '#d4edda',
-  LAPSED: '#fff3cd',
-  INVALID: '#f8d7da',
-  NOT_FOUND: '#f8d7da',
-  ERROR: '#f8d7da',
+  OK: '#eafaf1',
+  LAPSED: '#fefce8',
+  INVALID: '#fdf2f1',
+  NOT_FOUND: '#fdf2f1',
+  ERROR: '#fdf2f1',
 };
 
 const ROW_HEIGHT = 44;

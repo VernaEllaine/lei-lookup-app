@@ -4,11 +4,11 @@ import type { RowResult } from '../types';
 import EditableCell from './EditableCell';
 
 const STATUS_COLORS: Record<string, string> = {
-  'AUTO-MATCHED': '#d4edda',
-  'CONFIRMED': '#b8daff',
-  'REVIEWED': '#cce5ff',
-  'REVIEW NEEDED': '#fff3cd',
-  'NO MATCH': '#f8d7da',
+  'AUTO-MATCHED': '#eafaf1',
+  'CONFIRMED': '#ebf5fb',
+  'REVIEWED': '#ebf5fb',
+  'REVIEW NEEDED': '#fefce8',
+  'NO MATCH': '#fdf2f1',
 };
 
 const ROW_HEIGHT = 44;
@@ -69,7 +69,7 @@ export default function ResultsTable({ rows, onCellSave }: Props) {
             const row = rows[virtualRow.index];
             const bg =
               STATUS_COLORS[row.match_status] ||
-              (row.match_status.startsWith('ERROR') ? '#f8d7da' : undefined);
+              (row.match_status.startsWith('ERROR') ? '#fdf2f1' : undefined);
             return (
               <div
                 key={row.index}

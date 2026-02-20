@@ -10,11 +10,11 @@ const LEI_RE = /^[A-Z0-9]{20}$/;
 const EXAMPLE = 'INR2EJN1ERAN0W5ZP974\nMicrosoft Corporation, INR2EJN1ERAN0W5ZP974\nApple Inc | HWUPKR0MPOU8FGXBT394';
 
 const FLAG_COLORS: Record<string, string> = {
-  OK: '#d4edda',
-  LAPSED: '#fff3cd',
-  INVALID: '#f8d7da',
-  NOT_FOUND: '#f8d7da',
-  ERROR: '#f8d7da',
+  OK: '#eafaf1',
+  LAPSED: '#fefce8',
+  INVALID: '#fdf2f1',
+  NOT_FOUND: '#fdf2f1',
+  ERROR: '#fdf2f1',
 };
 
 function downloadCsv(content: string, filename: string): void {

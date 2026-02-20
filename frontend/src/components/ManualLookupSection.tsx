@@ -8,10 +8,10 @@ const BATCH_SIZE = 1;
 const EXAMPLE = 'Apple Inc\nDeutsche Bank AG\nCarrefour SA';
 
 const STATUS_COLORS: Record<string, string> = {
-  'AUTO-MATCHED': '#d4edda',
-  'REVIEW NEEDED': '#fff3cd',
-  'NO MATCH': '#f8d7da',
-  'ERROR': '#f8d7da',
+  'AUTO-MATCHED': '#eafaf1',
+  'REVIEW NEEDED': '#fefce8',
+  'NO MATCH': '#fdf2f1',
+  'ERROR': '#fdf2f1',
 };
 
 function downloadCsv(content: string, filename: string): void {
