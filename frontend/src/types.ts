@@ -104,6 +104,45 @@ export interface ValidationPaginatedResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Manual Lookup types (direct company-name search without CSV)
+// ---------------------------------------------------------------------------
+
+export interface ManualLookupResult {
+  query: string;
+  lei: string;
+  legal_name: string;
+  jurisdiction: string;
+  status: string;
+  confidence: string;
+  match_status: string;
+  candidates: string;
+  error: string;
+}
+
+export interface ManualLookupResponse {
+  results: ManualLookupResult[];
+}
+
+// ---------------------------------------------------------------------------
+// Manual Validation types (direct LEI validation without CSV)
+// ---------------------------------------------------------------------------
+
+export interface ManualValidationResult {
+  entity_name: string;
+  lei: string;
+  entity_status: string;
+  registration_status: string;
+  legal_name: string;
+  jurisdiction: string;
+  flag: string;
+  error: string;
+}
+
+export interface ManualValidationResponse {
+  results: ManualValidationResult[];
+}
+
+// ---------------------------------------------------------------------------
 // ISIN Lookup types
 // ---------------------------------------------------------------------------
 

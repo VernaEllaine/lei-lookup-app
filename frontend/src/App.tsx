@@ -18,6 +18,7 @@ import ResultsTable from './components/ResultsTable';
 import SummaryBar from './components/SummaryBar';
 import ValidationSection from './components/ValidationSection';
 import IsinLookupSection from './components/IsinLookupSection';
+import ManualLookupSection from './components/ManualLookupSection';
 
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 0]; // 0 = All
@@ -35,8 +36,11 @@ const emptySummary: Summary = {
 
 type Tab = 'lookup' | 'validation' | 'isin';
 
+type LookupMode = 'csv' | 'manual';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('lookup');
+  const [lookupMode, setLookupMode] = useState<LookupMode>('csv');
 
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState('');
@@ -224,6 +228,25 @@ export default function App() {
 
       {activeTab === 'lookup' && (
         <>
+          <div className="isin-mode-toggle">
+            <button
+              className={`isin-mode-btn${lookupMode === 'csv' ? ' active' : ''}`}
+              onClick={() => setLookupMode('csv')}
+            >
+              CSV Import
+            </button>
+            <button
+              className={`isin-mode-btn${lookupMode === 'manual' ? ' active' : ''}`}
+              onClick={() => setLookupMode('manual')}
+            >
+              Manual Input
+            </button>
+          </div>
+
+          {lookupMode === 'manual' ? (
+            <ManualLookupSection />
+          ) : (
+          <>
           <FileUpload onUpload={handleUpload} disabled={running} />
 
           <ColumnPicker
@@ -330,6 +353,8 @@ export default function App() {
                 Next
               </button>
             </div>
+          )}
+          </>
           )}
         </>
       )}

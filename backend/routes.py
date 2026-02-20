@@ -644,6 +644,115 @@ async def export_validation_csv(session_id: str = Query("")):
     )
 
 
+@router.get("/manual-lookup")
+async def manual_lookup(names: str = Query(...)):
+    """Look up company names directly without a CSV upload.
+
+    Accepts a comma- or newline-separated list of company names.  Each name is
+    run through lookup_lei() and classified, returning the same fields that the
+    CSV batch processor writes to each row.
+    """
+    from lei_lookup import lookup_lei as _lookup, _classify, _best_match, GleifAPIError
+
+    name_list = [n.strip() for n in names.replace("\n", ",").split(",") if n.strip()]
+    if not name_list:
+        return {"results": []}
+
+    results: list[dict] = []
+    for name in name_list:
+        try:
+            result = _lookup(name)
+            status = _classify(result)
+            best = _best_match(result)
+
+            if status == "AUTO-MATCHED" and best:
+                results.append({
+                    "query": name,
+                    "lei": best["lei"],
+                    "legal_name": best["legal_name"],
+                    "jurisdiction": best["jurisdiction"],
+                    "status": best["status"],
+                    "confidence": best["confidence"],
+                    "match_status": "AUTO-MATCHED",
+                    "candidates": "",
+                    "error": "",
+                })
+            elif status == "REVIEW NEEDED":
+                top = result["results"][0]
+                candidates = [
+                    f"{r['legal_name']} | {r['lei']} | {r['jurisdiction']} | {r['confidence']}"
+                    for r in result["results"]
+                ]
+                results.append({
+                    "query": name,
+                    "lei": top["lei"],
+                    "legal_name": top["legal_name"],
+                    "jurisdiction": top["jurisdiction"],
+                    "status": top["status"],
+                    "confidence": top["confidence"],
+                    "match_status": "REVIEW NEEDED",
+                    "candidates": "; ".join(candidates),
+                    "error": "",
+                })
+            else:
+                results.append({
+                    "query": name,
+                    "lei": "", "legal_name": "", "jurisdiction": "",
+                    "status": "", "confidence": "",
+                    "match_status": "NO MATCH",
+                    "candidates": "", "error": "",
+                })
+        except Exception as exc:
+            results.append({
+                "query": name,
+                "lei": "", "legal_name": "", "jurisdiction": "",
+                "status": "", "confidence": "",
+                "match_status": "ERROR",
+                "candidates": "", "error": str(exc),
+            })
+
+    return {"results": results}
+
+
+@router.post("/validate/manual")
+async def manual_validate(entries: list[dict]):
+    """Validate LEI codes directly without a CSV upload.
+
+    Accepts a JSON array of {"entity_name": "...", "lei": "..."} objects.
+    Each LEI is checked against the GLEIF API and flagged OK / LAPSED /
+    INVALID / NOT_FOUND / ERROR.
+    """
+    from lei_lookup import validate_single_lei as _validate
+
+    results: list[dict] = []
+    for entry in entries:
+        entity_name = entry.get("entity_name", "").strip()
+        lei = entry.get("lei", "").strip().upper()
+
+        if not lei:
+            results.append({
+                "entity_name": entity_name, "lei": lei,
+                "entity_status": "", "registration_status": "",
+                "legal_name": "", "jurisdiction": "",
+                "flag": "INVALID", "error": "No LEI provided",
+            })
+            continue
+
+        v = _validate(lei)
+        results.append({
+            "entity_name": entity_name,
+            "lei": lei,
+            "entity_status": v["entity_status"],
+            "registration_status": v["registration_status"],
+            "legal_name": v["legal_name"],
+            "jurisdiction": v["jurisdiction"],
+            "flag": v["flag"],
+            "error": "",
+        })
+
+    return {"results": results}
+
+
 @router.get("/isin-lookup")
 async def isin_lookup(isins: str = Query(...)):
     """Look up ISIN codes via the GLEIF lei-records filter and return LEI + entity details.

@@ -13,6 +13,7 @@ import ValidationColumnPicker from './ValidationColumnPicker';
 import ProgressBar from './ProgressBar';
 import ValidationResultsTable from './ValidationResultsTable';
 import ValidationSummaryBar from './ValidationSummaryBar';
+import ManualValidationSection from './ManualValidationSection';
 
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 0];
@@ -21,7 +22,10 @@ const emptySummary: ValidationSummary = {
   ok: 0, lapsed: 0, invalid: 0, not_found: 0, errors: 0, total: 0,
 };
 
+type ValidationMode = 'csv' | 'manual';
+
 export default function ValidationSection() {
+  const [mode, setMode] = useState<ValidationMode>('csv');
   const [headers, setHeaders] = useState<string[]>([]);
   const [entityColumn, setEntityColumn] = useState('');
   const [leiColumn, setLeiColumn] = useState('');
@@ -139,6 +143,25 @@ export default function ValidationSection() {
 
   return (
     <>
+      <div className="isin-mode-toggle">
+        <button
+          className={`isin-mode-btn${mode === 'csv' ? ' active' : ''}`}
+          onClick={() => setMode('csv')}
+        >
+          CSV Import
+        </button>
+        <button
+          className={`isin-mode-btn${mode === 'manual' ? ' active' : ''}`}
+          onClick={() => setMode('manual')}
+        >
+          Manual Input
+        </button>
+      </div>
+
+      {mode === 'manual' ? (
+        <ManualValidationSection />
+      ) : (
+      <>
       <FileUpload onUpload={handleUpload} disabled={running} />
 
       <ValidationColumnPicker
@@ -229,6 +252,8 @@ export default function ValidationSection() {
             Next
           </button>
         </div>
+      )}
+      </>
       )}
     </>
   );

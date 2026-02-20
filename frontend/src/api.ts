@@ -1,7 +1,7 @@
 import type {
   UploadResponse, RowResult, Summary, PaginatedResponse, ValidateLeiResponse,
   ValidationUploadResponse, ValidationSummary, ValidationPaginatedResponse,
-  IsinLookupResponse,
+  IsinLookupResponse, ManualLookupResponse, ManualValidationResponse,
 } from './types';
 
 const BASE = '/api';
@@ -205,6 +205,27 @@ export function exportValidationXlsx(sessionId?: string): void {
   const params = new URLSearchParams();
   if (sessionId) params.set('session_id', sessionId);
   window.open(`${BASE}/validate/export-xlsx?${params}`, '_blank');
+}
+
+// ---------------------------------------------------------------------------
+// Manual Lookup API
+// ---------------------------------------------------------------------------
+
+export async function manualLookupNames(names: string): Promise<ManualLookupResponse> {
+  const params = new URLSearchParams({ names });
+  const resp = await fetch(`${BASE}/manual-lookup?${params}`);
+  return resp.json();
+}
+
+export async function manualValidateEntries(
+  entries: { entity_name: string; lei: string }[],
+): Promise<ManualValidationResponse> {
+  const resp = await fetch(`${BASE}/validate/manual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entries),
+  });
+  return resp.json();
 }
 
 // ---------------------------------------------------------------------------
