@@ -646,38 +646,37 @@ async def export_validation_csv(session_id: str = Query("")):
 
 @router.get("/isin-lookup")
 async def isin_lookup(isins: str = Query(...)):
-    """Look up ISIN codes via the GLEIF ISIN-maps API and return LEI + entity details.
+    """Look up ISIN codes via the GLEIF lei-records filter and return LEI + entity details.
 
     Accepts a comma- or newline-separated list of ISIN codes.  For each ISIN the
-    endpoint calls the GLEIF isin-maps filter, then fetches the full LEI record to
-    get the legal entity name, jurisdiction (country), and registration status.
+    endpoint calls GET /lei-records?filter[isin]=<ISIN> which returns full entity
+    records directly — no second request needed.
     """
-    # Parse ISINs from comma/newline/space delimited string
     isin_list = [part.strip().upper() for part in isins.replace("\n", ",").split(",") if part.strip()]
     if not isin_list:
         return {"results": []}
 
     results: list[dict] = []
-    seen_pairs: set[tuple[str, str]] = set()
+    seen_leis: set[str] = set()
 
     for isin in isin_list:
         try:
-            # Step 1: ISIN → LEI mapping via GLEIF isin-maps
-            map_resp = requests.get(
-                "https://api.gleif.org/api/v1/isin-maps",
+            resp = requests.get(
+                "https://api.gleif.org/api/v1/lei-records",
                 params={"filter[isin]": isin, "page[size]": "10"},
+                headers={"Accept": "application/vnd.api+json"},
                 timeout=15,
             )
-            if map_resp.status_code != 200:
+            if resp.status_code != 200:
                 results.append({
                     "isin": isin, "lei": "", "legal_name": "", "country": "",
                     "entity_status": "", "registration_status": "",
-                    "error": f"ISIN lookup failed (HTTP {map_resp.status_code})",
+                    "error": f"ISIN lookup failed (HTTP {resp.status_code})",
                 })
                 continue
 
-            mappings = map_resp.json().get("data", [])
-            if not mappings:
+            records = resp.json().get("data", [])
+            if not records:
                 results.append({
                     "isin": isin, "lei": "", "legal_name": "", "country": "",
                     "entity_status": "", "registration_status": "",
@@ -685,27 +684,13 @@ async def isin_lookup(isins: str = Query(...)):
                 })
                 continue
 
-            for mapping in mappings:
-                lei = mapping.get("attributes", {}).get("lei", "")
-                if not lei or (isin, lei) in seen_pairs:
+            for rec in records:
+                lei = rec.get("id", "")
+                if not lei or lei in seen_leis:
                     continue
-                seen_pairs.add((isin, lei))
+                seen_leis.add(lei)
 
-                # Step 2: LEI → full entity record
-                lei_resp = requests.get(
-                    f"https://api.gleif.org/api/v1/lei-records/{lei}",
-                    timeout=15,
-                )
-                if lei_resp.status_code != 200:
-                    results.append({
-                        "isin": isin, "lei": lei, "legal_name": "", "country": "",
-                        "entity_status": "", "registration_status": "",
-                        "error": f"LEI record fetch failed (HTTP {lei_resp.status_code})",
-                    })
-                    continue
-
-                data = lei_resp.json().get("data", {})
-                attrs = data.get("attributes", {})
+                attrs = rec.get("attributes", {})
                 entity = attrs.get("entity", {})
                 registration = attrs.get("registration", {})
 
