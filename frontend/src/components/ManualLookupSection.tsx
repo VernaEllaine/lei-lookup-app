@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { ManualLookupResult } from '../types';
-import { manualLookupNames } from '../api';
+import { manualLookupNames, manualValidateEntries } from '../api';
+import EditableCell from './EditableCell';
 
 // Process one name at a time to show live progress
 const BATCH_SIZE = 1;
@@ -84,6 +85,36 @@ export default function ManualLookupSection() {
     downloadCsv(resultsToCsv(results), 'lei_manual_lookup.csv');
   }, [results]);
 
+  const handleLeiSave = useCallback(async (index: number, newLei: string) => {
+    const row = results[index];
+    try {
+      const resp = await manualValidateEntries([{ entity_name: row.query, lei: newLei }]);
+      const v = resp.results[0];
+
+      if (v.flag === 'INVALID' || v.flag === 'NOT_FOUND' || v.flag === 'ERROR') {
+        alert(`Invalid LEI: ${v.error || v.flag}`);
+        return;
+      }
+
+      if (v.flag === 'LAPSED') {
+        const confirmed = window.confirm(
+          `This LEI (${newLei}) is lapsed for ${v.legal_name}.\n\nDo you want to keep it?`,
+        );
+        if (!confirmed) return;
+      }
+
+      setResults((prev) =>
+        prev.map((r, i) =>
+          i === index
+            ? { ...r, lei: newLei, legal_name: v.legal_name, jurisdiction: v.jurisdiction, status: v.entity_status, match_status: 'CONFIRMED' }
+            : r,
+        ),
+      );
+    } catch {
+      alert('Failed to validate LEI. Please try again.');
+    }
+  }, [results]);
+
   return (
     <div className="manual-section">
       <p className="isin-desc">
@@ -157,7 +188,13 @@ export default function ManualLookupSection() {
               {results.map((r, i) => (
                 <tr key={i} style={{ background: STATUS_COLORS[r.match_status] ?? '#fff' }}>
                   <td>{r.query}</td>
-                  <td className="mono">{r.lei}</td>
+                  <td className="mono">
+                    <EditableCell
+                      value={r.lei}
+                      field="lei"
+                      onSave={(_field, value) => handleLeiSave(i, value)}
+                    />
+                  </td>
                   <td>{r.legal_name}</td>
                   <td>{r.jurisdiction}</td>
                   <td>{r.confidence}</td>

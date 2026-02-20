@@ -8,8 +8,16 @@
 }
 
 h1 {
-  margin: 0 0 20px;
+  margin: 0 0 6px;
   color: #14213d;
+}
+
+.app-description {
+  margin: 0 0 20px;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 680px;
 }
 
 /* Tab Bar */
@@ -658,4 +666,5 @@ h1 {
   justify-content: space-between;
   font-size: 13px;
   color: #6b7280;
+  margin-bottom: 16px;
 }

@@ -204,6 +204,9 @@ export default function App() {
   return (
     <div className="app">
       <h1>LEI Tools</h1>
+      <p className="app-description">
+        Look up, validate, and map Legal Entity Identifiers (LEIs) for companies and financial instruments.
+      </p>
 
       <div className="tab-bar">
         <button
