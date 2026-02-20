@@ -755,42 +755,10 @@ async def manual_validate(entries: list[dict]):
 
 @router.get("/isin-lookup")
 async def isin_lookup(isins: str = Query(...)):
-    """Look up ISIN codes via the GLEIF lei-records filter and return LEI + entity details.
-
-    Accepts a comma- or newline-separated list of ISIN codes.  For each ISIN the
-    endpoint calls GET /lei-records?filter[isin]=<ISIN> which returns full entity
-    records directly — no second request needed.
-
-    Security name and type are enriched from the OpenFIGI API (batch call).
-    """
+    """Look up ISIN codes via the GLEIF lei-records filter and return LEI + entity details."""
     isin_list = [part.strip().upper() for part in isins.replace("\n", ",").split(",") if part.strip()]
     if not isin_list:
         return {"results": []}
-
-    # ------------------------------------------------------------------ #
-    # Batch-query OpenFIGI for security names (up to 100 per request)     #
-    # ------------------------------------------------------------------ #
-    openfigi_map: dict[str, dict] = {}
-    try:
-        for i in range(0, len(isin_list), 100):
-            batch = isin_list[i:i + 100]
-            payload = [{"idType": "ID_ISIN", "idValue": isin} for isin in batch]
-            figi_resp = requests.post(
-                "https://api.openfigi.com/v3/mapping",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=15,
-            )
-            if figi_resp.status_code == 200:
-                for j, item in enumerate(figi_resp.json()):
-                    records = item.get("data") or []
-                    if records:
-                        openfigi_map[batch[j]] = {
-                            "security_name": records[0].get("name", ""),
-                            "security_type": records[0].get("securityType", ""),
-                        }
-    except Exception:
-        pass  # OpenFIGI enrichment is best-effort; GLEIF data always returned
 
     results: list[dict] = []
     seen_leis: set[str] = set()
@@ -807,40 +775,15 @@ async def isin_lookup(isins: str = Query(...)):
                 results.append({
                     "isin": isin, "lei": "", "legal_name": "", "country": "",
                     "entity_status": "", "registration_status": "",
-                    "security_name": "", "security_type": "", "match_source": "",
                     "error": f"ISIN lookup failed (HTTP {resp.status_code})",
                 })
                 continue
 
-            figi = openfigi_map.get(isin, {})
             records = resp.json().get("data", [])
-
-            # ---- Name fallback: if GLEIF has no ISIN mapping, try issuer name ----
-            if not records and figi.get("security_name"):
-                try:
-                    name_resp = requests.get(
-                        "https://api.gleif.org/api/v1/lei-records",
-                        params={"filter[entity.legalName]": figi["security_name"], "page[size]": "5"},
-                        headers={"Accept": "application/vnd.api+json"},
-                        timeout=15,
-                    )
-                    if name_resp.status_code == 200:
-                        records = name_resp.json().get("data", [])
-                        match_source = "name"
-                    else:
-                        match_source = ""
-                except Exception:
-                    match_source = ""
-            else:
-                match_source = "isin" if records else ""
-
             if not records:
                 results.append({
                     "isin": isin, "lei": "", "legal_name": "", "country": "",
                     "entity_status": "", "registration_status": "",
-                    "security_name": figi.get("security_name", ""),
-                    "security_type": figi.get("security_type", ""),
-                    "match_source": "",
                     "error": "No LEI found for this ISIN",
                 })
                 continue
@@ -858,13 +801,10 @@ async def isin_lookup(isins: str = Query(...)):
                 results.append({
                     "isin": isin,
                     "lei": lei,
-                    "security_name": figi.get("security_name", ""),
-                    "security_type": figi.get("security_type", ""),
                     "legal_name": entity.get("legalName", {}).get("name", ""),
                     "country": entity.get("jurisdiction", ""),
                     "entity_status": entity.get("status", ""),
                     "registration_status": registration.get("status", ""),
-                    "match_source": match_source,
                     "error": "",
                 })
 
@@ -872,7 +812,6 @@ async def isin_lookup(isins: str = Query(...)):
             results.append({
                 "isin": isin, "lei": "", "legal_name": "", "country": "",
                 "entity_status": "", "registration_status": "",
-                "security_name": "", "security_type": "", "match_source": "",
                 "error": str(exc),
             })
 
@@ -886,14 +825,12 @@ async def export_isin_xlsx(payload: dict):
 
     results = payload.get("results", [])
     headers = [
-        "ISIN", "Security Name", "Security Type", "LEI",
-        "Legal Entity Name", "Country", "Entity Status", "Registration Status",
-        "Match Source", "Error",
+        "ISIN", "LEI", "Legal Entity Name", "Country",
+        "Entity Status", "Registration Status", "Error",
     ]
     keys = [
-        "isin", "security_name", "security_type", "lei",
-        "legal_name", "country", "entity_status", "registration_status",
-        "match_source", "error",
+        "isin", "lei", "legal_name", "country",
+        "entity_status", "registration_status", "error",
     ]
 
     wb = openpyxl.Workbook()

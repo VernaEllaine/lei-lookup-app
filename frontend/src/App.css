@@ -465,20 +465,6 @@ h1 {
   font-size: 14px;
 }
 
-.match-source-badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 5px;
-  font-size: 11px;
-  font-family: sans-serif;
-  font-weight: normal;
-  background: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffc107;
-  border-radius: 3px;
-  vertical-align: middle;
-  cursor: help;
-}
 
 .example-link {
   background: none;

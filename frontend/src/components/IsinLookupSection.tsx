@@ -81,10 +81,10 @@ function downloadCsv(content: string, filename: string): void {
 }
 
 function resultsToCsv(results: IsinResult[]): string {
-  const header = 'ISIN,Security Name,Security Type,LEI,Legal Entity Name,Country,Entity Status,Registration Status,Match Source,Error';
+  const header = 'ISIN,LEI,Legal Entity Name,Country,Entity Status,Registration Status,Error';
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const rows = results.map((r) =>
-    [r.isin, r.security_name, r.security_type, r.lei, r.legal_name, r.country, r.entity_status, r.registration_status, r.match_source, r.error]
+    [r.isin, r.lei, r.legal_name, r.country, r.entity_status, r.registration_status, r.error]
       .map(escape)
       .join(','),
   );
@@ -162,10 +162,9 @@ export default function IsinLookupSection() {
       } catch {
         batch.forEach((isin) =>
           accumulated.push({
-            isin, lei: '', security_name: '', security_type: '',
-            legal_name: '', country: '',
+            isin, lei: '', legal_name: '', country: '',
             entity_status: '', registration_status: '',
-            match_source: '', error: 'Request failed',
+            error: 'Request failed',
           }),
         );
       }
@@ -369,8 +368,6 @@ export default function IsinLookupSection() {
             <thead>
               <tr>
                 <th>ISIN</th>
-                <th>Security Name</th>
-                <th>Security Type</th>
                 <th>LEI</th>
                 <th>Legal Entity Name</th>
                 <th>Country</th>
@@ -382,16 +379,7 @@ export default function IsinLookupSection() {
               {found.map((r, i) => (
                 <tr key={i} style={{ background: statusColor(r.entity_status) }}>
                   <td className="mono">{r.isin}</td>
-                  <td>{r.security_name}</td>
-                  <td>{r.security_type}</td>
-                  <td className="mono">
-                    {r.lei}
-                    {r.match_source === 'name' && (
-                      <span className="match-source-badge" title="Matched via issuer name — no direct ISIN-to-LEI link in GLEIF">
-                        via name
-                      </span>
-                    )}
-                  </td>
+                  <td className="mono">{r.lei}</td>
                   <td>{r.legal_name}</td>
                   <td>{r.country}</td>
                   <td>{r.entity_status}</td>
