@@ -229,7 +229,7 @@ export default function IsinLookupSection() {
   const notFound = results.filter((r) => r.error);
 
   return (
-    <div className="app">
+    <>
 
       {/* Mode toggle */}
       <div className="isin-mode-toggle">
@@ -383,6 +383,6 @@ export default function IsinLookupSection() {
           </table>
         </div>
       )}
-    </div>
+    </>
   );
 }
