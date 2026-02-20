@@ -149,6 +149,8 @@ export interface ManualValidationResponse {
 export interface IsinResult {
   isin: string;
   lei: string;
+  security_name: string;
+  security_type: string;
   legal_name: string;
   country: string;
   entity_status: string;
