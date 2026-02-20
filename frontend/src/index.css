@@ -11,3 +11,7 @@ body {
   background: #fff;
   color: #333;
 }
+
+th {
+  text-align: left;
+}
