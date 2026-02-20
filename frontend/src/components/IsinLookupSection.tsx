@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { IsinResult } from '../types';
 import { lookupIsins, exportIsinXlsx } from '../api';
 
@@ -206,6 +206,19 @@ export default function IsinLookupSection() {
     exportIsinXlsx(results);
   }, [results]);
 
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -330,8 +343,17 @@ export default function IsinLookupSection() {
       {results.length > 0 && !isRunning && (
         <div className="isin-results-header">
           <span>{found.length} found, {notFound.length} not found</span>
-          <button className="btn" onClick={handleExportCsv}>Export CSV</button>
-          <button className="btn" onClick={handleExportXlsx}>Export XLSX</button>
+          <div className="export-dropdown" ref={exportDropdownRef}>
+            <button className="btn" onClick={() => setExportOpen(!exportOpen)}>
+              Export ▾
+            </button>
+            {exportOpen && (
+              <div className="export-dropdown-menu">
+                <button onClick={() => { handleExportCsv(); setExportOpen(false); }}>Export CSV</button>
+                <button onClick={() => { handleExportXlsx(); setExportOpen(false); }}>Export XLSX</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
