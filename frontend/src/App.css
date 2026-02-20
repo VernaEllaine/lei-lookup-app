@@ -539,3 +539,97 @@ h1 {
   font-size: 12px;
   letter-spacing: 0.03em;
 }
+
+/* ISIN mode toggle */
+.isin-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.isin-mode-btn {
+  padding: 6px 18px;
+  border: none;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  transition: background 0.15s;
+}
+
+.isin-mode-btn:not(:last-child) {
+  border-right: 1px solid #ced4da;
+}
+
+.isin-mode-btn.active {
+  background: #0d6efd;
+  color: #fff;
+}
+
+.isin-mode-btn:hover:not(.active) {
+  background: #e9ecef;
+}
+
+/* CSV controls */
+.isin-csv-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.isin-col-label {
+  font-size: 13px;
+  color: #555;
+}
+
+.isin-col-select {
+  padding: 5px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.isin-row-count {
+  font-size: 12px;
+  color: #888;
+}
+
+/* Progress bar */
+.isin-progress {
+  position: relative;
+  height: 20px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.isin-progress-bar {
+  height: 100%;
+  background: #0d6efd;
+  transition: width 0.2s ease;
+}
+
+.isin-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Results header */
+.isin-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #555;
+}

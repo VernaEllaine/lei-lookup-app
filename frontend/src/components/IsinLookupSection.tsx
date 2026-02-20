@@ -1,6 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { IsinResult } from '../types';
 import { lookupIsins } from '../api';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const BATCH_SIZE = 5; // ISINs sent per backend request
 
 const FLAG_COLORS: Record<string, string> = {
   ACTIVE: '#d4edda',
@@ -12,67 +18,318 @@ function statusColor(entityStatus: string): string {
   return FLAG_COLORS[entityStatus] ?? '#fff';
 }
 
+/** Minimal RFC 4180 CSV parser — returns {headers, rows}. */
+function parseCSV(text: string): { headers: string[]; rows: string[][] } {
+  // Detect delimiter: semicolon or tab if they appear more than commas on line 1
+  const firstLine = text.split('\n')[0] ?? '';
+  const commas = (firstLine.match(/,/g) ?? []).length;
+  const semis = (firstLine.match(/;/g) ?? []).length;
+  const tabs = (firstLine.match(/\t/g) ?? []).length;
+  const delim = semis > commas ? ';' : tabs > commas ? '\t' : ',';
+
+  const lines = text.replace(/\r\n?/g, '\n').trimEnd().split('\n');
+  const parse = (line: string): string[] => {
+    const cells: string[] = [];
+    let cur = '';
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuote) {
+        if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') { inQuote = false; }
+        else { cur += ch; }
+      } else {
+        if (ch === '"') { inQuote = true; }
+        else if (ch === delim) { cells.push(cur.trim()); cur = ''; }
+        else { cur += ch; }
+      }
+    }
+    cells.push(cur.trim());
+    return cells;
+  };
+
+  const [headerLine, ...dataLines] = lines;
+  const headers = parse(headerLine ?? '');
+  const rows = dataLines.filter(Boolean).map(parse);
+  return { headers, rows };
+}
+
+/** Guess which column holds ISIN codes. */
+function detectIsinColumn(headers: string[], rows: string[][]): string {
+  // 1. Header name match
+  const isinPattern = /\bisin\b/i;
+  const byName = headers.find((h) => isinPattern.test(h));
+  if (byName) return byName;
+  // 2. Data pattern: 12-char alphanumeric starting with 2 uppercase letters
+  const isinRegex = /^[A-Z]{2}[A-Z0-9]{10}$/;
+  for (let col = 0; col < headers.length; col++) {
+    const sample = rows.slice(0, 5).map((r) => r[col] ?? '');
+    if (sample.some((v) => isinRegex.test(v.trim()))) return headers[col];
+  }
+  return headers[0] ?? '';
+}
+
+/** Trigger a browser CSV download from a string. */
+function downloadCsv(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resultsToCsv(results: IsinResult[]): string {
+  const header = 'ISIN,LEI,Legal Entity Name,Country,Entity Status,Registration Status,Error';
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = results.map((r) =>
+    [r.isin, r.lei, r.legal_name, r.country, r.entity_status, r.registration_status, r.error]
+      .map(escape)
+      .join(','),
+  );
+  return [header, ...rows].join('\r\n');
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+type Mode = 'manual' | 'csv';
+
 export default function IsinLookupSection() {
+  const [mode, setMode] = useState<Mode>('manual');
+
+  // Manual mode
   const [input, setInput] = useState('');
+
+  // CSV mode
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  const [isinColumn, setIsinColumn] = useState('');
+  const [csvFilename, setCsvFilename] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Shared
   const [results, setResults] = useState<IsinResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState('');
 
-  const handleLookup = useCallback(async () => {
-    const trimmed = input.trim();
-    if (!trimmed) return;
+  // -------------------------------------------------------------------------
+  // CSV file loading
+  // -------------------------------------------------------------------------
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFilename(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = (ev.target?.result as string) ?? '';
+      const { headers, rows } = parseCSV(text);
+      setCsvHeaders(headers);
+      setCsvRows(rows);
+      setIsinColumn(detectIsinColumn(headers, rows));
+      setResults([]);
+      setError('');
+      setProgress({ current: 0, total: 0 });
+    };
+    reader.readAsText(file, 'utf-8');
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Lookup logic (shared by both modes)
+  // -------------------------------------------------------------------------
+
+  const runLookup = useCallback(async (isins: string[]) => {
+    const unique = [...new Set(isins.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+    if (!unique.length) { setError('No ISIN codes found.'); return; }
+
     setLoading(true);
     setError('');
     setResults([]);
-    try {
-      const resp = await lookupIsins(trimmed);
-      setResults(resp.results);
-      if (resp.results.length === 0) setError('No results found.');
-    } catch (e) {
-      setError('Request failed. Check your connection and try again.');
-    } finally {
-      setLoading(false);
+    setProgress({ current: 0, total: unique.length });
+
+    const accumulated: IsinResult[] = [];
+    for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+      const batch = unique.slice(i, i + BATCH_SIZE);
+      try {
+        const resp = await lookupIsins(batch.join(','));
+        accumulated.push(...resp.results);
+      } catch {
+        batch.forEach((isin) =>
+          accumulated.push({
+            isin, lei: '', legal_name: '', country: '',
+            entity_status: '', registration_status: '',
+            error: 'Request failed',
+          }),
+        );
+      }
+      setProgress({ current: Math.min(i + BATCH_SIZE, unique.length), total: unique.length });
+      setResults([...accumulated]);
     }
-  }, [input]);
+
+    setLoading(false);
+    if (accumulated.length === 0) setError('No results found.');
+  }, []);
+
+  const handleManualLookup = useCallback(() => {
+    const isins = input.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+    runLookup(isins);
+  }, [input, runLookup]);
+
+  const handleCsvLookup = useCallback(() => {
+    const colIndex = csvHeaders.indexOf(isinColumn);
+    if (colIndex === -1) { setError('Selected column not found.'); return; }
+    const isins = csvRows.map((r) => r[colIndex] ?? '').filter(Boolean);
+    runLookup(isins);
+  }, [csvHeaders, csvRows, isinColumn, runLookup]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleLookup();
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleManualLookup();
     },
-    [handleLookup],
+    [handleManualLookup],
   );
+
+  // -------------------------------------------------------------------------
+  // Export
+  // -------------------------------------------------------------------------
+
+  const handleExport = useCallback(() => {
+    downloadCsv(resultsToCsv(results), 'isin_lookup_results.csv');
+  }, [results]);
+
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
 
   const found = results.filter((r) => !r.error);
   const notFound = results.filter((r) => r.error);
+  const isRunning = loading;
 
   return (
     <div className="isin-section">
-      <p className="isin-desc">
-        Enter one or more ISIN codes (one per line or comma-separated) to find
-        the Legal Entity Identifier (LEI) of the issuer.
-      </p>
 
-      <div className="isin-input-row">
-        <textarea
-          className="isin-textarea"
-          rows={4}
-          placeholder={'US0378331005\nDE0007164600\nGB0002634946'}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={loading}
-        />
+      {/* Mode toggle */}
+      <div className="isin-mode-toggle">
         <button
-          className="btn btn-primary"
-          onClick={handleLookup}
-          disabled={loading || !input.trim()}
+          className={`isin-mode-btn${mode === 'manual' ? ' active' : ''}`}
+          onClick={() => setMode('manual')}
         >
-          {loading ? 'Looking up…' : 'Look Up'}
+          Manual Input
+        </button>
+        <button
+          className={`isin-mode-btn${mode === 'csv' ? ' active' : ''}`}
+          onClick={() => setMode('csv')}
+        >
+          CSV Import
         </button>
       </div>
 
+      {/* Manual mode */}
+      {mode === 'manual' && (
+        <>
+          <p className="isin-desc">
+            Enter one or more ISIN codes (one per line or comma-separated).
+            Use Ctrl+Enter to run.
+          </p>
+          <div className="isin-input-row">
+            <textarea
+              className="isin-textarea"
+              rows={4}
+              placeholder={'US0378331005\nDE0007164600\nGB0002634946'}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isRunning}
+            />
+            <button
+              className="btn btn-primary"
+              onClick={handleManualLookup}
+              disabled={isRunning || !input.trim()}
+            >
+              {isRunning ? 'Looking up…' : 'Look Up'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* CSV mode */}
+      {mode === 'csv' && (
+        <>
+          <p className="isin-desc">
+            Upload a CSV file containing ISIN codes. The ISIN column will be
+            auto-detected or you can select it manually.
+          </p>
+          <div className="isin-csv-controls">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.tsv,.txt"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+            <button
+              className="btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isRunning}
+            >
+              {csvFilename ? `📄 ${csvFilename}` : 'Choose CSV file'}
+            </button>
+
+            {csvHeaders.length > 0 && (
+              <>
+                <label className="isin-col-label">ISIN column:</label>
+                <select
+                  className="isin-col-select"
+                  value={isinColumn}
+                  onChange={(e) => setIsinColumn(e.target.value)}
+                  disabled={isRunning}
+                >
+                  {csvHeaders.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <span className="isin-row-count">{csvRows.length} rows</span>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleCsvLookup}
+                  disabled={isRunning || !isinColumn}
+                >
+                  {isRunning ? 'Looking up…' : 'Run Lookup'}
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Progress */}
+      {isRunning && progress.total > 0 && (
+        <div className="isin-progress">
+          <div
+            className="isin-progress-bar"
+            style={{ width: `${(progress.current / progress.total) * 100}%` }}
+          />
+          <span className="isin-progress-text">
+            {progress.current} / {progress.total} ISINs processed
+          </span>
+        </div>
+      )}
+
       {error && <p className="isin-error">{error}</p>}
 
+      {/* Results header + export */}
+      {results.length > 0 && !isRunning && (
+        <div className="isin-results-header">
+          <span>{found.length} found, {notFound.length} not found</span>
+          <button className="btn" onClick={handleExport}>Export CSV</button>
+        </div>
+      )}
+
+      {/* Found results */}
       {found.length > 0 && (
         <div className="isin-results">
           <table className="isin-table">
@@ -102,9 +359,10 @@ export default function IsinLookupSection() {
         </div>
       )}
 
+      {/* Not found / errors */}
       {notFound.length > 0 && (
         <div className="isin-not-found">
-          <h4>Not found / errors</h4>
+          <h4>Not found / errors ({notFound.length})</h4>
           <table className="isin-table isin-table-error">
             <thead>
               <tr>
