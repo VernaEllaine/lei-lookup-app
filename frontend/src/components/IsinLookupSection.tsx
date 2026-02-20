@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { IsinResult } from '../types';
-import { lookupIsins } from '../api';
+import { lookupIsins, exportIsinXlsx } from '../api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -198,8 +198,12 @@ export default function IsinLookupSection() {
   // Export
   // -------------------------------------------------------------------------
 
-  const handleExport = useCallback(() => {
+  const handleExportCsv = useCallback(() => {
     downloadCsv(resultsToCsv(results), 'isin_lookup_results.csv');
+  }, [results]);
+
+  const handleExportXlsx = useCallback(() => {
+    exportIsinXlsx(results);
   }, [results]);
 
   // -------------------------------------------------------------------------
@@ -326,7 +330,8 @@ export default function IsinLookupSection() {
       {results.length > 0 && !isRunning && (
         <div className="isin-results-header">
           <span>{found.length} found, {notFound.length} not found</span>
-          <button className="btn" onClick={handleExport}>Export CSV</button>
+          <button className="btn" onClick={handleExportCsv}>Export CSV</button>
+          <button className="btn" onClick={handleExportXlsx}>Export XLSX</button>
         </div>
       )}
 

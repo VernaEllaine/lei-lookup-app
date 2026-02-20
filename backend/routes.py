@@ -856,6 +856,38 @@ async def isin_lookup(isins: str = Query(...)):
     return {"results": results}
 
 
+@router.post("/isin-lookup/export-xlsx")
+async def export_isin_xlsx(payload: dict):
+    """Accept ISIN lookup results as JSON and return an XLSX file."""
+    import openpyxl
+
+    results = payload.get("results", [])
+    headers = [
+        "ISIN", "Security Name", "Security Type", "LEI",
+        "Legal Entity Name", "Country", "Entity Status", "Registration Status", "Error",
+    ]
+    keys = [
+        "isin", "security_name", "security_type", "lei",
+        "legal_name", "country", "entity_status", "registration_status", "error",
+    ]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(headers)
+    for row in results:
+        ws.append([row.get(k, "") for k in keys])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=isin_lookup_results.xlsx"},
+    )
+
+
 @router.get("/validate/export-xlsx")
 async def export_validation_xlsx(session_id: str = Query("")):
     all_rows = database.get_all_validation_results_for_export(session_id)

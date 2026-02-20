@@ -1,7 +1,7 @@
 import type {
   UploadResponse, RowResult, Summary, PaginatedResponse, ValidateLeiResponse,
   ValidationUploadResponse, ValidationSummary, ValidationPaginatedResponse,
-  IsinLookupResponse, ManualLookupResponse, ManualValidationResponse,
+  IsinResult, IsinLookupResponse, ManualLookupResponse, ManualValidationResponse,
 } from './types';
 
 const BASE = '/api';
@@ -236,4 +236,19 @@ export async function lookupIsins(isins: string): Promise<IsinLookupResponse> {
   const params = new URLSearchParams({ isins });
   const resp = await fetch(`${BASE}/isin-lookup?${params}`);
   return resp.json();
+}
+
+export async function exportIsinXlsx(results: IsinResult[]): Promise<void> {
+  const resp = await fetch(`${BASE}/isin-lookup/export-xlsx`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results }),
+  });
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'isin_lookup_results.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
 }
