@@ -7,6 +7,8 @@ const BATCH_SIZE = 5;
 // 20-char LEI pattern
 const LEI_RE = /^[A-Z0-9]{20}$/;
 
+const EXAMPLE = 'INR2EJN1ERAN0W5ZP974\nMicrosoft Corporation, INR2EJN1ERAN0W5ZP974\nApple Inc | HWUPKR0MPOU8FGXBT394';
+
 const FLAG_COLORS: Record<string, string> = {
   OK: '#d4edda',
   LAPSED: '#fff3cd',
@@ -123,16 +125,17 @@ export default function ManualValidationSection() {
       <p className="isin-desc">
         Enter one LEI per line. Optionally include the entity name separated by a
         comma or pipe: <code>Entity Name, LEI</code> or just <code>LEI</code>.
-        Use Ctrl+Enter to run.
+        Use Ctrl+Enter to run.{' '}
+        <button className="example-link" onClick={() => setInput(EXAMPLE)} disabled={loading}>
+          Try example
+        </button>
       </p>
 
       <div className="isin-input-row">
         <textarea
           className="isin-textarea"
           rows={5}
-          placeholder={
-            'INR2EJN1ERAN0W5ZP974\nMicrosoft Corporation, INR2EJN1ERAN0W5ZP974\nApple Inc | HWUPKR0MPOU8FGXBT394'
-          }
+          placeholder={EXAMPLE}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}

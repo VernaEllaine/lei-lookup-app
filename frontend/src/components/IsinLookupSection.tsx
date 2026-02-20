@@ -97,6 +97,8 @@ function resultsToCsv(results: IsinResult[]): string {
 
 type Mode = 'manual' | 'csv';
 
+const MANUAL_EXAMPLE = 'US0378331005\nDE0007164600\nGB0002634946';
+
 export default function IsinLookupSection() {
   const [mode, setMode] = useState<Mode>('csv');
 
@@ -251,13 +253,16 @@ export default function IsinLookupSection() {
         <>
           <p className="isin-desc">
             Enter one or more ISIN codes (one per line or comma-separated).
-            Use Ctrl+Enter to run.
+            Use Ctrl+Enter to run.{' '}
+            <button className="example-link" onClick={() => setInput(MANUAL_EXAMPLE)} disabled={loading}>
+              Try example
+            </button>
           </p>
           <div className="isin-input-row">
             <textarea
               className="isin-textarea"
               rows={4}
-              placeholder={'US0378331005\nDE0007164600\nGB0002634946'}
+              placeholder={MANUAL_EXAMPLE}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}

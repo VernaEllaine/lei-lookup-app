@@ -5,6 +5,8 @@ import { manualLookupNames } from '../api';
 // Process one name at a time to show live progress
 const BATCH_SIZE = 1;
 
+const EXAMPLE = 'Apple Inc\nDeutsche Bank AG\nCarrefour SA';
+
 const STATUS_COLORS: Record<string, string> = {
   'AUTO-MATCHED': '#d4edda',
   'REVIEW NEEDED': '#fff3cd',
@@ -86,14 +88,17 @@ export default function ManualLookupSection() {
     <div className="manual-section">
       <p className="isin-desc">
         Enter one company name per line. Results stream in as each name is resolved.
-        Use Ctrl+Enter to run.
+        Use Ctrl+Enter to run.{' '}
+        <button className="example-link" onClick={() => setInput(EXAMPLE)} disabled={loading}>
+          Try example
+        </button>
       </p>
 
       <div className="isin-input-row">
         <textarea
           className="isin-textarea"
           rows={5}
-          placeholder={'Apple Inc\nDeutsche Bank AG\nCarrefour SA'}
+          placeholder={EXAMPLE}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
