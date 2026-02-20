@@ -4,14 +4,15 @@ interface Props {
   onChange: (col: string) => void;
   onRun: () => void;
   disabled: boolean;
+  label?: string;
 }
 
-export default function ColumnPicker({ headers, selected, onChange, onRun, disabled }: Props) {
+export default function ColumnPicker({ headers, selected, onChange, onRun, disabled, label = 'Entity Column:' }: Props) {
   if (headers.length === 0) return null;
 
   return (
     <div className="column-picker">
-      <label>Entity Column:</label>
+      <label>{label}</label>
       <select
         value={selected}
         onChange={(e) => onChange(e.target.value)}
