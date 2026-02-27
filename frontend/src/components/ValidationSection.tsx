@@ -6,7 +6,6 @@ import {
   getValidationResultsPage,
   exportValidationCsv,
   exportValidationXlsx,
-  acceptSuggestedLei,
 } from '../api';
 import FileUpload from './FileUpload';
 import ValidationColumnPicker from './ValidationColumnPicker';
@@ -99,12 +98,6 @@ export default function ValidationSection() {
     );
     closeRef.current = close;
   }, [entityColumn, leiColumn, sessionId, fetchPage, pageSize, flagFilter]);
-
-  const handleAccept = useCallback(async (rowIndex: number) => {
-    const resp = await acceptSuggestedLei(sessionId, rowIndex);
-    setSummary(resp.summary);
-    await fetchPage(currentPage, pageSize, flagFilter);
-  }, [sessionId, fetchPage, currentPage, pageSize, flagFilter]);
 
   const handleExportCsv = useCallback(() => {
     exportValidationCsv(sessionId);
@@ -238,7 +231,7 @@ export default function ValidationSection() {
         </div>
       )}
 
-      <ValidationResultsTable rows={rows} onAccept={handleAccept} />
+      <ValidationResultsTable rows={rows} />
 
       {rows.length > 0 && !running && showPagination && totalPages > 1 && (
         <div className="pagination pagination-bottom">
