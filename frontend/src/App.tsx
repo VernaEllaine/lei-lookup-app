@@ -258,6 +258,7 @@ export default function App() {
             onChange={setSelectedColumn}
             onRun={handleRun}
             disabled={running || headers.length === 0}
+            label="Entity Name Column:"
           />
 
           <ProgressBar

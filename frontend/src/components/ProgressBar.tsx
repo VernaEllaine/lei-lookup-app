@@ -11,13 +11,15 @@ export default function ProgressBar({ current, total, statusText }: Props) {
 
   return (
     <div className="progress-section">
-      <div className="progress-bar-container">
-        <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="progress-count">
-        {current} / {total}
-      </span>
       <span className="progress-status">{statusText}</span>
+      <div className="progress-bar-row">
+        <div className="progress-bar-container">
+          <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <span className="progress-count">
+          {current} / {total}
+        </span>
+      </div>
     </div>
   );
 }
