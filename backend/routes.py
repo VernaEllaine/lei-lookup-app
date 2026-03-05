@@ -38,6 +38,30 @@ def _sniff_dialect(text: str) -> csv.Dialect:
     except csv.Error:
         return csv.excel  # default to comma
 
+
+def _parse_upload(filename: str, content: bytes) -> tuple[list[str], list[dict]]:
+    """Parse CSV or XLSX upload content. Returns (headers, rows)."""
+    if filename.lower().endswith('.xlsx'):
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        rows_iter = ws.iter_rows(values_only=True)
+        header_row = next(rows_iter, None) or []
+        headers = [str(c) if c is not None else '' for c in header_row]
+        rows = [
+            {headers[i]: (str(cell) if cell is not None else '') for i, cell in enumerate(row)}
+            for row in rows_iter
+        ]
+        wb.close()
+        return headers, rows
+    else:
+        text = content.decode('utf-8-sig')
+        dialect = _sniff_dialect(text)
+        reader = csv.DictReader(io.StringIO(text), dialect=dialect)
+        headers = list(reader.fieldnames or [])
+        rows = list(reader)
+        return headers, rows
+
 # Shared cache manager (global across sessions)
 cache = CacheManager()
 
@@ -87,11 +111,7 @@ async def upload_csv(file: UploadFile = File(...)):
     _sessions[session_id] = session
 
     content = await file.read()
-    text = content.decode("utf-8-sig")
-    dialect = _sniff_dialect(text)
-    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
-    session.input_headers = list(reader.fieldnames or [])
-    session.rows = list(reader)
+    session.input_headers, session.rows = _parse_upload(file.filename or '', content)
 
     detected = _detect_name_column(session.input_headers)
     session.name_column = detected or ""
@@ -456,11 +476,7 @@ async def validate_upload_csv(file: UploadFile = File(...)):
     _validation_sessions[session_id] = session
 
     content = await file.read()
-    text = content.decode("utf-8-sig")
-    dialect = _sniff_dialect(text)
-    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
-    session.input_headers = list(reader.fieldnames or [])
-    session.rows = list(reader)
+    session.input_headers, session.rows = _parse_upload(file.filename or '', content)
 
     detected_entity = _detect_name_column(session.input_headers)
     detected_lei = _detect_lei_column(session.input_headers)

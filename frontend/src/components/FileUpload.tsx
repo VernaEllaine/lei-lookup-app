@@ -36,7 +36,7 @@ export default function FileUpload({ onUpload, disabled }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept=".csv"
+        accept=".csv,.xlsx"
         style={{ display: 'none' }}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -49,10 +49,10 @@ export default function FileUpload({ onUpload, disabled }: Props) {
         disabled={disabled}
         className="btn"
       >
-        Browse CSV
+        Browse File
       </button>
       <span className="file-name">
-        {fileName ? fileName : 'Drop a CSV file here or click Browse'}
+        {fileName ? fileName : 'Drop a CSV or XLSX file here or click Browse'}
       </span>
     </div>
   );

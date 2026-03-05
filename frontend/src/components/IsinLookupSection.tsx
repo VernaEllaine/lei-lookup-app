@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import type { IsinResult } from '../types';
 import { lookupIsins, exportIsinXlsx } from '../api';
 import FileUpload from './FileUpload';
@@ -118,14 +119,29 @@ export default function IsinLookupSection() {
   const [error, setError] = useState('');
 
   // -------------------------------------------------------------------------
-  // CSV file loading
+  // File loading (CSV or XLSX)
   // -------------------------------------------------------------------------
 
   const handleFileUpload = useCallback((file: File) => {
     const reader = new FileReader();
+    const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
+
     reader.onload = (ev) => {
-      const text = (ev.target?.result as string) ?? '';
-      const { headers, rows } = parseCSV(text);
+      let headers: string[];
+      let rows: string[][];
+
+      if (isXlsx) {
+        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const sheet: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        headers = (sheet[0] ?? []).map(String);
+        rows = sheet.slice(1).map((r) => r.map(String));
+      } else {
+        const text = (ev.target?.result as string) ?? '';
+        ({ headers, rows } = parseCSV(text));
+      }
+
       setCsvHeaders(headers);
       setCsvRows(rows);
       setIsinColumn(detectIsinColumn(headers, rows));
@@ -134,7 +150,12 @@ export default function IsinLookupSection() {
       setProgress({ current: 0, total: 0 });
       setStatusText(`Loaded ${rows.length} rows`);
     };
-    reader.readAsText(file, 'utf-8');
+
+    if (isXlsx) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file, 'utf-8');
+    }
   }, []);
 
   // -------------------------------------------------------------------------
