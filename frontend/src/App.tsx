@@ -19,6 +19,7 @@ import SummaryBar from './components/SummaryBar';
 import ValidationSection from './components/ValidationSection';
 import IsinLookupSection from './components/IsinLookupSection';
 import ManualLookupSection from './components/ManualLookupSection';
+import GleifDataBadge from './components/GleifDataBadge';
 
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 0]; // 0 = All
@@ -207,6 +208,7 @@ export default function App() {
       <p className="app-description">
         Look up, validate, and map Legal Entity Identifiers (LEIs) for companies and financial instruments.
       </p>
+      <GleifDataBadge />
 
       <div className="tab-bar">
         <button

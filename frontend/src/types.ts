@@ -159,3 +159,11 @@ export interface IsinResult {
 export interface IsinLookupResponse {
   results: IsinResult[];
 }
+
+export interface GleifLocalStatus {
+  available: boolean;
+  publish_date?: string;
+  lei_count?: string;
+  isin_count?: string;
+  loaded_at?: string;
+}
