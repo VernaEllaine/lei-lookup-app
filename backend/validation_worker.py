@@ -10,8 +10,10 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lei_lookup import lookup_lei, validate_single_lei, _best_match, _classify
-from backend import database
+from lei_lookup import (
+    lookup_lei, validate_single_lei, validate_single_lei_local, _best_match, _classify,
+)
+from backend import database, gleif_local
 from backend.models import ValidationRowResult, ValidationProgress
 from backend.rate_limiter import get_rate_limiter
 
@@ -56,7 +58,10 @@ async def run_validation(
             flag = "NOT_FOUND" if not lei_code else "INVALID"
         else:
             try:
-                result = await limiter.execute(validate_single_lei, lei_code)
+                # Local copy first; only LEIs missing from it go to the API
+                result = validate_single_lei_local(lei_code)
+                if result is None:
+                    result = await limiter.execute(validate_single_lei, lei_code)
                 entity_status = result["entity_status"]
                 registration_status = result["registration_status"]
                 flag = result["flag"]
@@ -66,7 +71,10 @@ async def run_validation(
         # If not OK and we have an entity name, try to find a replacement
         if flag != "OK" and entity_name:
             try:
-                lookup_result = await limiter.execute(lookup_lei, entity_name)
+                if gleif_local.is_available():
+                    lookup_result = await asyncio.to_thread(lookup_lei, entity_name)
+                else:
+                    lookup_result = await limiter.execute(lookup_lei, entity_name)
                 best = _best_match(lookup_result)
                 if best:
                     suggested_lei = best["lei"]

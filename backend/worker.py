@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import requests
 
 from lei_lookup import GleifAPIError, _best_match, _classify, lookup_lei
-from backend import database
+from backend import database, gleif_local
 from backend.cache import CacheManager
 from backend.models import RowResult, LookupProgress
 from backend.rate_limiter import get_rate_limiter
@@ -65,7 +65,11 @@ async def run_lookup(
                 match_status = cached["match_status"]
             else:
                 try:
-                    result = await limiter.execute(lookup_lei, company)
+                    if gleif_local.is_available():
+                        # Local search makes no GLEIF calls, so skip the limiter
+                        result = await asyncio.to_thread(lookup_lei, company)
+                    else:
+                        result = await limiter.execute(lookup_lei, company)
                 except (requests.RequestException, GleifAPIError) as exc:
                     out.update({h: "" for h in LEI_FIELDS})
                     out["lei_match_status"] = f"ERROR: {exc}"
