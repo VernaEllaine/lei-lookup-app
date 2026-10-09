@@ -28,3 +28,15 @@ def isolated_database(tmp_path_factory):
 
     db_mod._DB_PATH = original_path
     db_mod._local = original_local
+
+
+@pytest.fixture(autouse=True, scope="session")
+def no_local_gleif(tmp_path_factory):
+    """Point backend.gleif_local at an empty directory so tests exercise the
+    (mocked) API paths even when a real local GLEIF copy is installed."""
+    import backend.gleif_local as gl
+
+    original = gl.DATA_DIR
+    gl.DATA_DIR = str(tmp_path_factory.mktemp("gleif_empty"))
+    yield
+    gl.DATA_DIR = original

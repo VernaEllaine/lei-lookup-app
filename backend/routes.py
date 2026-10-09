@@ -16,7 +16,7 @@ from fastapi import APIRouter, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from rapidfuzz import fuzz
 
-from backend import database
+from backend import database, gleif_local
 from backend.cache import CacheManager
 from backend.models import (
     CellUpdate,
@@ -278,23 +278,30 @@ async def validate_lei(row_id: int):
         return ValidateLeiResponse(valid=False, message="No LEI to validate")
 
     try:
-        resp = requests.get(
-            f"https://api.gleif.org/api/v1/lei-records/{lei_code}",
-            timeout=15,
-        )
-        if resp.status_code != 200:
-            return ValidateLeiResponse(
-                valid=False,
-                message=f"LEI '{lei_code}' not found (HTTP {resp.status_code}).",
+        local = gleif_local.get_record(lei_code)
+        if local is not None:
+            legal_name = local["legal_name"]
+            jurisdiction = local["jurisdiction"]
+            status = local["status"]
+            reg_status = local["registration_status"]
+        else:
+            resp = requests.get(
+                f"https://api.gleif.org/api/v1/lei-records/{lei_code}",
+                timeout=15,
             )
+            if resp.status_code != 200:
+                return ValidateLeiResponse(
+                    valid=False,
+                    message=f"LEI '{lei_code}' not found (HTTP {resp.status_code}).",
+                )
 
-        data = resp.json().get("data", {})
-        attr = data.get("attributes", {}).get("entity", {})
-        legal_name = attr.get("legalName", {}).get("name", "")
-        jurisdiction = attr.get("jurisdiction", "")
-        status = attr.get("status", "")
-        reg = data.get("attributes", {}).get("registration", {})
-        reg_status = reg.get("status", "")
+            data = resp.json().get("data", {})
+            attr = data.get("attributes", {}).get("entity", {})
+            legal_name = attr.get("legalName", {}).get("name", "")
+            jurisdiction = attr.get("jurisdiction", "")
+            status = attr.get("status", "")
+            reg = data.get("attributes", {}).get("registration", {})
+            reg_status = reg.get("status", "")
 
         if status != "ACTIVE" or reg_status != "ISSUED":
             return ValidateLeiResponse(
@@ -780,6 +787,26 @@ async def isin_lookup(isins: str = Query(...)):
     seen_leis: set[str] = set()
 
     for isin in isin_list:
+        local = [
+            rec for rec in map(gleif_local.get_record, gleif_local.leis_for_isin(isin))
+            if rec is not None
+        ]
+        if local:
+            for rec in local:
+                if rec["lei"] in seen_leis:
+                    continue
+                seen_leis.add(rec["lei"])
+                results.append({
+                    "isin": isin,
+                    "lei": rec["lei"],
+                    "legal_name": rec["legal_name"],
+                    "country": rec["jurisdiction"],
+                    "entity_status": rec["status"],
+                    "registration_status": rec["registration_status"],
+                    "error": "",
+                })
+            continue
+
         try:
             resp = requests.get(
                 "https://api.gleif.org/api/v1/lei-records",
@@ -832,6 +859,12 @@ async def isin_lookup(isins: str = Query(...)):
             })
 
     return {"results": results}
+
+
+@router.get("/gleif-local/status")
+async def gleif_local_status():
+    """Report whether a local GLEIF copy is loaded and how fresh it is."""
+    return gleif_local.status()
 
 
 @router.post("/isin-lookup/export-xlsx")

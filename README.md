@@ -27,6 +27,25 @@ cd frontend && npm run dev
 
 Open `http://localhost:5173`
 
+## Local GLEIF Copy (optional, recommended)
+
+Load the full GLEIF golden copy (~3.5M LEI records) and the ISIN-LEI mapping into a local SQLite database so lookups don't wait on the rate-limited GLEIF API:
+
+```bash
+python -m backend.gleif_local load     # downloads ~510 MB, builds the DB
+python -m backend.gleif_local status   # shows publish date and counts
+```
+
+When a local copy is loaded:
+
+- **Name lookups** use SQLite FTS5 full-text search over legal, other and transliterated names of ACTIVE/ISSUED entities, then run through the same confidence scoring as before. They skip the global rate limiter.
+- **LEI validation** and **ISIN lookups** read the local tables and only call the API for LEIs/ISINs that aren't in the local copy (e.g. issued after it was published).
+- `GET /api/gleif-local/status` reports what is loaded.
+
+GLEIF republishes the golden copy three times a day; rerun `load` to refresh. It can run while the server is up — each load writes a new `gleif-<timestamp>.db` and switches the `current` pointer, and older files are removed on the next load.
+
+A load takes a few minutes and the DB is ~1 GB. It is stored in `%LOCALAPPDATA%\lei-lookup\gleif` on Windows, `~/.local/share/lei-lookup/gleif` elsewhere, or `$DATA_DIR/gleif` when `DATA_DIR` is set (Docker). Override with `GLEIF_DATA_DIR`. Keep it out of synced folders such as OneDrive.
+
 ## Architecture
 
 ### Backend

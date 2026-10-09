@@ -4,6 +4,7 @@ import csv
 import random
 import re
 import sys
+import threading
 import time
 
 import requests
@@ -11,7 +12,13 @@ from rapidfuzz import fuzz
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from backend import gleif_local
+
 GLEIF_BASE = "https://api.gleif.org/api/v1"
+
+# Web-search fallbacks are no longer serialised by the GLEIF rate limiter when
+# the local copy is used, so cap how many run at once.
+_web_search_slots = threading.Semaphore(2)
 
 # Retry settings
 MAX_RETRIES = 5
@@ -129,6 +136,20 @@ def _retry_after(resp: requests.Response, attempt: int) -> float:
     return base + random.uniform(0, 1)
 
 
+def _api_record(rec: dict) -> dict:
+    """Flatten a GLEIF API lei-record into the same shape as local records."""
+    attrs = rec.get("attributes", {})
+    entity = attrs.get("entity", {})
+    registration = attrs.get("registration", {})
+    return {
+        "lei": attrs.get("lei", ""),
+        "legal_name": entity.get("legalName", {}).get("name", ""),
+        "jurisdiction": entity.get("jurisdiction", ""),
+        "status": entity.get("status", ""),
+        "registration_status": registration.get("status", ""),
+    }
+
+
 # Common legal-form suffixes to strip when searching
 _LEGAL_SUFFIXES = re.compile(
     r"\b("
@@ -205,7 +226,7 @@ def _web_search_lei(company_name: str) -> list[dict]:
 
     query = f"{company_name} LEI legal entity identifier"
     try:
-        with DDGS() as ddgs:
+        with _web_search_slots, DDGS() as ddgs:
             web_results = list(ddgs.text(query, max_results=5))
     except Exception:
         return []
@@ -224,26 +245,30 @@ def _web_search_lei(company_name: str) -> list[dict]:
     if not candidates:
         return []
 
-    lei_filter = ",".join(candidates[:20])
-    try:
-        resp = requests.get(
-            f"{GLEIF_BASE}/lei-records",
-            params={"filter[lei]": lei_filter, "page[size]": "20"},
-            timeout=15,
-        )
-        if resp.status_code != 200:
+    if gleif_local.is_available():
+        records = [
+            rec for rec in map(gleif_local.get_record, candidates[:20])
+            if rec is not None
+        ]
+    else:
+        lei_filter = ",".join(candidates[:20])
+        try:
+            resp = requests.get(
+                f"{GLEIF_BASE}/lei-records",
+                params={"filter[lei]": lei_filter, "page[size]": "20"},
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                return []
+        except Exception:
             return []
-    except Exception:
-        return []
+        records = [_api_record(rec) for rec in resp.json().get("data", [])]
 
     results = []
-    for rec in resp.json().get("data", []):
-        attrs = rec.get("attributes", {})
-        entity = attrs.get("entity", {})
-        registration = attrs.get("registration", {})
-        legal_name = entity.get("legalName", {}).get("name", "")
-        status = entity.get("status", "")
-        reg_status = registration.get("status", "")
+    for rec in records:
+        legal_name = rec["legal_name"]
+        status = rec["status"]
+        reg_status = rec["registration_status"]
 
         if status != "ACTIVE" or reg_status != "ISSUED":
             continue
@@ -258,9 +283,9 @@ def _web_search_lei(company_name: str) -> list[dict]:
             continue
 
         results.append({
-            "lei": attrs.get("lei", ""),
+            "lei": rec["lei"],
             "legal_name": legal_name,
-            "jurisdiction": entity.get("jurisdiction", ""),
+            "jurisdiction": rec["jurisdiction"],
             "status": status,
             "registration_status": reg_status,
             "confidence": confidence,
@@ -404,29 +429,36 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
         GleifAPIError: On unrecoverable API errors after exhausting retries.
     """
     def _search(query: str) -> list[dict]:
-        payload = _api_get(
-            f"{GLEIF_BASE}/lei-records",
-            params={
-                "filter[entity.legalName]": query,
-                "page[size]": str(max_results),
-            },
-        )
-        records = payload.get("data", [])
-        hits = []
-        for rec in records:
-            attrs = rec.get("attributes", {})
-            entity = attrs.get("entity", {})
-            registration = attrs.get("registration", {})
-            legal_name = entity.get("legalName", {}).get("name", "")
-            confidence = _compute_confidence(company_name, legal_name)
-            hits.append({
-                "lei": attrs.get("lei", ""),
-                "legal_name": legal_name,
-                "jurisdiction": entity.get("jurisdiction", ""),
-                "status": entity.get("status", ""),
-                "registration_status": registration.get("status", ""),
-                "confidence": confidence,
-            })
+        if gleif_local.is_available():
+            # Rank on core names so e.g. "Deutsche Bank Aktiengesellschaft"
+            # beats longer "... Bank AG" names for "Deutsche Bank AG".
+            query_core = _extract_core_name(query).lower()
+            records = gleif_local.search_names(
+                query, max_results,
+                scorer=lambda name: fuzz.token_sort_ratio(
+                    query_core, _extract_core_name(name).lower()
+                ),
+            )
+        else:
+            payload = _api_get(
+                f"{GLEIF_BASE}/lei-records",
+                params={
+                    "filter[entity.legalName]": query,
+                    "page[size]": str(max_results),
+                },
+            )
+            records = [_api_record(rec) for rec in payload.get("data", [])]
+        hits = [
+            {
+                "lei": rec["lei"],
+                "legal_name": rec["legal_name"],
+                "jurisdiction": rec["jurisdiction"],
+                "status": rec["status"],
+                "registration_status": rec["registration_status"],
+                "confidence": _compute_confidence(company_name, rec["legal_name"]),
+            }
+            for rec in records
+        ]
         return [
             r for r in hits
             if r["status"] == "ACTIVE" and r["registration_status"] == "ISSUED"
@@ -584,6 +616,10 @@ def validate_single_lei(lei_code: str) -> dict:
     Returns a dict with entity_status, registration_status, legal_name,
     jurisdiction, and computed flag (OK/LAPSED/INVALID/NOT_FOUND/ERROR).
     """
+    local = validate_single_lei_local(lei_code)
+    if local is not None:
+        return local
+
     try:
         payload = _api_get(
             f"{GLEIF_BASE}/lei-records/{lei_code}",
@@ -611,11 +647,31 @@ def validate_single_lei(lei_code: str) -> dict:
     entity = attrs.get("entity", {})
     registration = attrs.get("registration", {})
 
-    entity_status = entity.get("status", "")
-    reg_status = registration.get("status", "")
-    legal_name = entity.get("legalName", {}).get("name", "")
-    jurisdiction = entity.get("jurisdiction", "")
+    return _validation_result(
+        entity.get("status", ""),
+        registration.get("status", ""),
+        entity.get("legalName", {}).get("name", ""),
+        entity.get("jurisdiction", ""),
+    )
 
+
+def validate_single_lei_local(lei_code: str) -> dict | None:
+    """Validate *lei_code* against the local GLEIF copy.
+
+    Returns None when there is no local copy or the LEI is not in it (e.g.
+    issued after the copy was published), so callers can ask the API.
+    """
+    rec = gleif_local.get_record(lei_code)
+    if rec is None:
+        return None
+    return _validation_result(
+        rec["status"], rec["registration_status"],
+        rec["legal_name"], rec["jurisdiction"],
+    )
+
+
+def _validation_result(entity_status: str, reg_status: str,
+                       legal_name: str, jurisdiction: str) -> dict:
     if entity_status == "ACTIVE" and reg_status == "ISSUED":
         flag = "OK"
     elif reg_status == "LAPSED":
