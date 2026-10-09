@@ -2,6 +2,7 @@ import type {
   UploadResponse, RowResult, Summary, PaginatedResponse, ValidateLeiResponse,
   ValidationUploadResponse, ValidationSummary, ValidationPaginatedResponse,
   IsinResult, IsinLookupResponse, ManualLookupResponse, ManualValidationResponse,
+  GleifLocalStatus,
 } from './types';
 
 const BASE = '/api';
@@ -251,4 +252,13 @@ export async function exportIsinXlsx(results: IsinResult[]): Promise<void> {
   a.download = 'isin_lookup_results.xlsx';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
+// Local GLEIF copy
+// ---------------------------------------------------------------------------
+
+export async function getGleifLocalStatus(): Promise<GleifLocalStatus> {
+  const resp = await fetch(`${BASE}/gleif-local/status`);
+  return resp.json();
 }

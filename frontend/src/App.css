@@ -20,6 +20,20 @@ h1 {
   max-width: 680px;
 }
 
+.app-description:has(+ .gleif-badge) {
+  margin-bottom: 4px;
+}
+
+.gleif-badge {
+  margin: 0 0 20px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.gleif-badge.stale {
+  color: #b45309;
+}
+
 /* Tab Bar */
 .tab-bar {
   display: flex;

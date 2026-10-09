@@ -40,9 +40,21 @@ When a local copy is loaded:
 
 - **Name lookups** use SQLite FTS5 full-text search over legal, other and transliterated names of ACTIVE/ISSUED entities, then run through the same confidence scoring as before. They skip the global rate limiter.
 - **LEI validation** and **ISIN lookups** read the local tables and only call the API for LEIs/ISINs that aren't in the local copy (e.g. issued after it was published).
-- `GET /api/gleif-local/status` reports what is loaded.
+- `GET /api/gleif-local/status` reports what is loaded; the app header shows the publish date (amber when older than 3 days) or "Live GLEIF API" when no copy is loaded.
 
-GLEIF republishes the golden copy three times a day; rerun `load` to refresh. It can run while the server is up — each load writes a new `gleif-<timestamp>.db` and switches the `current` pointer, and older files are removed on the next load.
+GLEIF republishes the golden copy three times a day; rerun `load` to refresh. `load` does nothing if the latest published files are already loaded (`--force` rebuilds anyway). It can run while the server is up — each load writes a new `gleif-<timestamp>.db` and switches the `current` pointer, and older files are removed on the next load.
+
+On Windows, a per-user scheduled task can do this daily, logging to `%LOCALAPPDATA%\lei-lookup\refresh.log`:
+
+```powershell
+$py = "$env:LOCALAPPDATA\lei-lookup-venv\Scripts\python.exe"   # adjust to your venv
+$log = "$env:LOCALAPPDATA\lei-lookup\refresh.log"
+$action = New-ScheduledTaskAction -Execute cmd.exe -WorkingDirectory (Get-Location) `
+  -Argument "/c `"`"$py`" -u -m backend.gleif_local load >> `"$log`" 2>&1`""
+Register-ScheduledTask -TaskName "LEI Lookup - GLEIF refresh" -Action $action `
+  -Trigger (New-ScheduledTaskTrigger -Daily -At 07:00) `
+  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2))
+```
 
 A load takes a few minutes and the DB is ~1 GB. It is stored in `%LOCALAPPDATA%\lei-lookup\gleif` on Windows, `~/.local/share/lei-lookup/gleif` elsewhere, or `$DATA_DIR/gleif` when `DATA_DIR` is set (Docker). Override with `GLEIF_DATA_DIR`. Keep it out of synced folders such as OneDrive.
 

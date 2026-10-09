@@ -105,6 +105,50 @@ def test_validate_uses_local_copy(local_copy, monkeypatch):
     assert lei_lookup.validate_single_lei_local("NOTINLOCALCOPY000000") is None
 
 
+def _fake_latest(monkeypatch, lei_name, isin_name):
+    """Make the GLEIF 'latest' endpoints advertise the given file names."""
+    import requests
+
+    class Resp:
+        def __init__(self, data):
+            self._data = data
+
+        def json(self):
+            return self._data
+
+    def fake_get(url, **_kw):
+        if url == gl.GOLDEN_COPY_LATEST:
+            return Resp({"data": {"publish_date": "2026-10-10 00:00:00", "lei2": {"full_file": {
+                "csv": {"url": f"https://example.test/{lei_name}"}}}}})
+        if url == gl.ISIN_LATEST:
+            return Resp({"data": {"attributes": {
+                "fileName": isin_name, "downloadLink": f"https://example.test/{isin_name}"}}})
+        raise AssertionError(f"unexpected download of {url}")
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+
+def test_download_latest_skips_when_already_loaded(local_copy, monkeypatch):
+    _fake_latest(monkeypatch, "lei2.csv.zip", "isin.zip")
+    assert gl.download_latest(log=lambda _m: None) is None
+
+
+def test_download_latest_fetches_new_publish(local_copy, monkeypatch):
+    _fake_latest(monkeypatch, "lei2-new.csv.zip", "isin.zip")
+    fetched = []
+    monkeypatch.setattr(gl, "_download", lambda url, dest, log: fetched.append(url) or dest)
+    lei_zip, isin_zip, publish_date = gl.download_latest(log=lambda _m: None)
+    assert lei_zip.endswith("lei2-new.csv.zip")
+    assert publish_date == "2026-10-10 00:00:00"
+    assert len(fetched) == 2
+
+
+def test_download_latest_force_ignores_loaded(local_copy, monkeypatch):
+    _fake_latest(monkeypatch, "lei2.csv.zip", "isin.zip")
+    monkeypatch.setattr(gl, "_download", lambda url, dest, log: dest)
+    assert gl.download_latest(log=lambda _m: None, force=True) is not None
+
+
 def test_rebuild_switches_current_db(local_copy, tmp_path):
     first = gl._current_db_path()
     assert gl.get_record("815600AD83B2B6317788") is not None

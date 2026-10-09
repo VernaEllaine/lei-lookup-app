@@ -8,7 +8,8 @@ Each load writes a new ``gleif-<publish>.db`` file and then points the
 connections switch to the new file on their next query.
 
 Usage:
-    python -m backend.gleif_local load            # download latest + build
+    python -m backend.gleif_local load            # download latest + build (skipped if already loaded)
+    python -m backend.gleif_local load --force    # rebuild even if already loaded
     python -m backend.gleif_local load --lei-zip path/to/lei2.csv.zip --isin-zip path/to/isin.zip
     python -m backend.gleif_local status
 """
@@ -363,10 +364,11 @@ def _download(url: str, dest: str, log) -> str:
     return dest
 
 
-def download_latest(log=print) -> tuple[str, str, str]:
+def download_latest(log=print, force: bool = False) -> tuple[str, str, str] | None:
     """Download the latest golden copy and ISIN mapping zips.
 
-    Returns (lei_zip_path, isin_zip_path, publish_date).
+    Returns (lei_zip_path, isin_zip_path, publish_date), or None when the
+    published files are the ones already loaded (unless *force*).
     """
     import requests
 
@@ -375,9 +377,15 @@ def download_latest(log=print) -> tuple[str, str, str]:
 
     publish = requests.get(GOLDEN_COPY_LATEST, timeout=30).json()["data"]
     lei_url = publish["lei2"]["full_file"]["csv"]["url"]
-    lei_zip = _download(lei_url, os.path.join(downloads, lei_url.rsplit("/", 1)[-1]), log)
-
+    lei_name = lei_url.rsplit("/", 1)[-1]
     isin = requests.get(ISIN_LATEST, timeout=30).json()["data"]["attributes"]
+
+    loaded = status()
+    if not force and (loaded.get("lei_file"), loaded.get("isin_file")) == (lei_name, isin["fileName"]):
+        log(f"Already up to date ({lei_name}, {isin['fileName']})")
+        return None
+
+    lei_zip = _download(lei_url, os.path.join(downloads, lei_name), log)
     isin_zip = _download(isin["downloadLink"], os.path.join(downloads, isin["fileName"]), log)
 
     # Only keep the files just used
@@ -397,6 +405,7 @@ def main(argv: list[str] | None = None) -> None:
     load.add_argument("--lei-zip", help="Golden copy LEI2 CSV zip (skips download).")
     load.add_argument("--isin-zip", help="ISIN-LEI mapping zip.")
     load.add_argument("--publish-date", default="", help="Publish date to record with --lei-zip.")
+    load.add_argument("--force", action="store_true", help="Rebuild even if already up to date.")
     sub.add_parser("status", help="Show what is loaded.")
     args = parser.parse_args(argv)
 
@@ -405,11 +414,13 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{k}: {v}")
         return
 
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] gleif_local load", flush=True)
     if args.lei_zip:
         build(args.lei_zip, args.isin_zip, args.publish_date)
     else:
-        lei_zip, isin_zip, publish_date = download_latest()
-        build(lei_zip, isin_zip, publish_date)
+        latest = download_latest(force=args.force)
+        if latest is not None:
+            build(*latest)
 
 
 if __name__ == "__main__":
