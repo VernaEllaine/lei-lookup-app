@@ -18,6 +18,7 @@ import ResultsTable from './components/ResultsTable';
 import SummaryBar from './components/SummaryBar';
 import ValidationSection from './components/ValidationSection';
 import IsinLookupSection from './components/IsinLookupSection';
+import IssuerDetailsSection from './components/IssuerDetailsSection';
 import ManualLookupSection from './components/ManualLookupSection';
 import GleifDataBadge from './components/GleifDataBadge';
 
@@ -35,7 +36,7 @@ const emptySummary: Summary = {
   cache_size: 0,
 };
 
-type Tab = 'lookup' | 'validation' | 'isin';
+type Tab = 'lookup' | 'validation' | 'isin' | 'issuer';
 
 type LookupMode = 'csv' | 'manual';
 
@@ -229,6 +230,12 @@ export default function App() {
         >
           ISIN Lookup
         </button>
+        <button
+          className={`tab-btn${activeTab === 'issuer' ? ' active' : ''}`}
+          onClick={() => setActiveTab('issuer')}
+        >
+          Issuer Details
+        </button>
       </div>
 
       {activeTab === 'lookup' && (
@@ -368,6 +375,8 @@ export default function App() {
       {activeTab === 'validation' && <ValidationSection />}
 
       {activeTab === 'isin' && <IsinLookupSection />}
+
+      {activeTab === 'issuer' && <IssuerDetailsSection />}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import os
+import re
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ from backend.models import (
     UploadResponse,
     ValidateLeiResponse,
 )
+from backend.regions import region_for
 from backend.worker import run_lookup
 from backend.validation_worker import run_validation
 
@@ -858,6 +860,80 @@ async def isin_lookup(isins: str = Query(...)):
                 "error": str(exc),
             })
 
+    return {"results": results}
+
+
+_LEI_FORMAT = re.compile(r"^[A-Z0-9]{18}[0-9]{2}$")
+_API_BATCH = 100
+
+
+def _api_lei_details(leis: list[str]) -> dict[str, dict]:
+    """Fetch issuer details for *leis* from the GLEIF API, keyed by LEI."""
+    found: dict[str, dict] = {}
+    for i in range(0, len(leis), _API_BATCH):
+        batch = leis[i:i + _API_BATCH]
+        resp = requests.get(
+            "https://api.gleif.org/api/v1/lei-records",
+            params={"filter[lei]": ",".join(batch), "page[size]": str(len(batch))},
+            headers={"Accept": "application/vnd.api+json"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        for rec in resp.json().get("data", []):
+            attrs = rec.get("attributes", {})
+            entity = attrs.get("entity", {})
+            found[attrs.get("lei", "")] = {
+                "legal_name": entity.get("legalName", {}).get("name", ""),
+                "country": entity.get("legalAddress", {}).get("country", ""),
+                "status": entity.get("status", ""),
+                "registration_status": attrs.get("registration", {}).get("status", ""),
+            }
+    return found
+
+
+@router.post("/lei-details")
+async def lei_details(payload: dict):
+    """Return issuer name, country (ISO alpha-2, legal address) and region
+    for each LEI in ``{"leis": [...]}``, in the order given.
+
+    Reads the local GLEIF copy; LEIs missing from it are fetched from the API.
+    """
+    leis = [str(v).strip().upper() for v in payload.get("leis", [])]
+    valid = {lei for lei in leis if _LEI_FORMAT.match(lei)}
+
+    details: dict[str, dict] = {}
+    for lei in valid:
+        rec = gleif_local.get_record(lei)
+        if rec is not None:
+            details[lei] = rec
+
+    api_error = ""
+    missing = sorted(valid - details.keys())
+    if missing:
+        try:
+            details.update(await asyncio.to_thread(_api_lei_details, missing))
+        except Exception as exc:
+            api_error = f"GLEIF API lookup failed: {exc}"
+
+    results = []
+    for lei in leis:
+        rec = details.get(lei)
+        if not _LEI_FORMAT.match(lei):
+            error = "Not a valid LEI format"
+        elif rec is None:
+            error = api_error or "LEI not found in GLEIF"
+        else:
+            error = ""
+        country = rec["country"] if rec else ""
+        results.append({
+            "lei": lei,
+            "legal_name": rec["legal_name"] if rec else "",
+            "country": country,
+            "region": region_for(country),
+            "entity_status": rec["status"] if rec else "",
+            "registration_status": rec["registration_status"] if rec else "",
+            "error": error,
+        })
     return {"results": results}
 
 
