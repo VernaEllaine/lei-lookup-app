@@ -2,7 +2,7 @@ import type {
   UploadResponse, RowResult, Summary, PaginatedResponse, ValidateLeiResponse,
   ValidationUploadResponse, ValidationSummary, ValidationPaginatedResponse,
   IsinResult, IsinLookupResponse, ManualLookupResponse, ManualValidationResponse,
-  GleifLocalStatus,
+  GleifLocalStatus, LeiDetailsResponse,
 } from './types';
 
 const BASE = '/api';
@@ -252,6 +252,20 @@ export async function exportIsinXlsx(results: IsinResult[]): Promise<void> {
   a.download = 'isin_lookup_results.xlsx';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
+// Issuer details (LEI -> name, country, region)
+// ---------------------------------------------------------------------------
+
+export async function lookupLeiDetails(leis: string[]): Promise<LeiDetailsResponse> {
+  const resp = await fetch(`${BASE}/lei-details`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ leis }),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
 }
 
 // ---------------------------------------------------------------------------

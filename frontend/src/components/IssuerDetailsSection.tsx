@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import type { IsinResult } from '../types';
-import { lookupIsins, exportIsinXlsx } from '../api';
+import type { LeiDetail } from '../types';
+import { lookupLeiDetails } from '../api';
 import { parseCSV, downloadCsv } from '../csv';
 import FileUpload from './FileUpload';
 import ColumnPicker from './ColumnPicker';
@@ -11,40 +11,52 @@ import ProgressBar from './ProgressBar';
 // Helpers
 // ---------------------------------------------------------------------------
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 1000;
+const LEI_REGEX = /^[A-Z0-9]{18}[0-9]{2}$/;
 
-const FLAG_COLORS: Record<string, string> = {
-  ACTIVE: '#eafaf1',
-  INACTIVE: '#fdf2f1',
-  ANNULLED: '#fdf2f1',
-};
+const EXPORT_HEADERS = [
+  'LEI', 'Name of Issuer', 'Country of Issuer', 'Region',
+  'Entity Status', 'Registration Status', 'Error',
+];
 
-function statusColor(entityStatus: string): string {
-  return FLAG_COLORS[entityStatus] ?? '#fff';
+function toExportRows(results: LeiDetail[]): string[][] {
+  return results.map((r) => [
+    r.lei, r.legal_name, r.country, r.region,
+    r.entity_status, r.registration_status, r.error,
+  ]);
 }
 
-/** Guess which column holds ISIN codes. */
-function detectIsinColumn(headers: string[], rows: string[][]): string {
-  const isinPattern = /\bisin\b/i;
-  const byName = headers.find((h) => isinPattern.test(h));
+function resultsToCsv(results: LeiDetail[]): string {
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  return [EXPORT_HEADERS, ...toExportRows(results)]
+    .map((row) => row.map(escape).join(','))
+    .join('\r\n');
+}
+
+function exportXlsx(results: LeiDetail[]): void {
+  const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...toExportRows(results)]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Issuer Details');
+  XLSX.writeFile(wb, 'issuer_details.xlsx');
+}
+
+/** Guess which column holds LEI codes. */
+function detectLeiColumn(headers: string[], rows: string[][]): string {
+  const byName = headers.find((h) => /\blei\b/i.test(h));
   if (byName) return byName;
-  const isinRegex = /^[A-Z]{2}[A-Z0-9]{10}$/;
   for (let col = 0; col < headers.length; col++) {
-    const sample = rows.slice(0, 5).map((r) => r[col] ?? '');
-    if (sample.some((v) => isinRegex.test(v.trim()))) return headers[col];
+    const sample = rows.slice(0, 5).map((r) => (r[col] ?? '').trim().toUpperCase());
+    if (sample.some((v) => LEI_REGEX.test(v))) return headers[col];
   }
   return headers[0] ?? '';
 }
 
-function resultsToCsv(results: IsinResult[]): string {
-  const header = 'ISIN,LEI,Legal Entity Name,Country,Entity Status,Registration Status,Error';
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  const rows = results.map((r) =>
-    [r.isin, r.lei, r.legal_name, r.country, r.entity_status, r.registration_status, r.error]
-      .map(escape)
-      .join(','),
-  );
-  return [header, ...rows].join('\r\n');
+/** Files that are just a list of LEIs have no header row: if any "header"
+ *  cell is itself an LEI, treat the first row as data. */
+function withHeaders(headers: string[], rows: string[][]): { headers: string[]; rows: string[][] } {
+  if (!headers.some((h) => LEI_REGEX.test(h.trim().toUpperCase()))) return { headers, rows };
+  const names = headers.map((_, i) => (headers.length === 1 ? 'LEI' : `Column ${i + 1}`));
+  return { headers: names, rows: [headers, ...rows] };
 }
 
 // ---------------------------------------------------------------------------
@@ -53,9 +65,9 @@ function resultsToCsv(results: IsinResult[]): string {
 
 type Mode = 'manual' | 'csv';
 
-const MANUAL_EXAMPLE = 'US0378331005\nDE0007164600\nGB0002634946';
+const MANUAL_EXAMPLE = '8156009027DEC776E736\n549300187TP95ZWG8155\nHWUPKR0MPOU8FGXBT394';
 
-export default function IsinLookupSection() {
+export default function IssuerDetailsSection() {
   const [mode, setMode] = useState<Mode>('csv');
 
   // Manual mode
@@ -64,10 +76,10 @@ export default function IsinLookupSection() {
   // CSV mode
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<string[][]>([]);
-  const [isinColumn, setIsinColumn] = useState('');
+  const [leiColumn, setLeiColumn] = useState('');
 
   // Shared
-  const [results, setResults] = useState<IsinResult[]>([]);
+  const [results, setResults] = useState<LeiDetail[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [statusText, setStatusText] = useState('');
@@ -82,24 +94,25 @@ export default function IsinLookupSection() {
     const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
 
     reader.onload = (ev) => {
-      let headers: string[];
-      let rows: string[][];
+      let parsed: { headers: string[]; rows: string[][] };
 
       if (isXlsx) {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const sheet: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-        headers = (sheet[0] ?? []).map(String);
-        rows = sheet.slice(1).map((r) => r.map(String));
+        parsed = {
+          headers: (sheet[0] ?? []).map(String),
+          rows: sheet.slice(1).map((r) => r.map(String)),
+        };
       } else {
-        const text = (ev.target?.result as string) ?? '';
-        ({ headers, rows } = parseCSV(text));
+        parsed = parseCSV((ev.target?.result as string) ?? '');
       }
 
+      const { headers, rows } = withHeaders(parsed.headers, parsed.rows);
       setCsvHeaders(headers);
       setCsvRows(rows);
-      setIsinColumn(detectIsinColumn(headers, rows));
+      setLeiColumn(detectLeiColumn(headers, rows));
       setResults([]);
       setError('');
       setProgress({ current: 0, total: 0 });
@@ -114,56 +127,54 @@ export default function IsinLookupSection() {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Lookup logic (shared by both modes)
+  // Lookup logic (shared by both modes). Keeps input order and duplicates so
+  // exports line up row-for-row with the source file.
   // -------------------------------------------------------------------------
 
-  const runLookup = useCallback(async (isins: string[]) => {
-    const unique = [...new Set(isins.map((s) => s.trim().toUpperCase()).filter(Boolean))];
-    if (!unique.length) { setError('No ISIN codes found.'); return; }
+  const runLookup = useCallback(async (leis: string[]) => {
+    const codes = leis.map((s) => s.trim().toUpperCase()).filter(Boolean);
+    if (!codes.length) { setError('No LEI codes found.'); return; }
 
     setLoading(true);
     setError('');
     setResults([]);
-    setProgress({ current: 0, total: unique.length });
+    setProgress({ current: 0, total: codes.length });
     setStatusText('Starting…');
 
-    const accumulated: IsinResult[] = [];
-    for (let i = 0; i < unique.length; i += BATCH_SIZE) {
-      const batch = unique.slice(i, i + BATCH_SIZE);
+    const accumulated: LeiDetail[] = [];
+    for (let i = 0; i < codes.length; i += BATCH_SIZE) {
+      const batch = codes.slice(i, i + BATCH_SIZE);
       try {
-        const resp = await lookupIsins(batch.join(','));
+        const resp = await lookupLeiDetails(batch);
         accumulated.push(...resp.results);
       } catch {
-        batch.forEach((isin) =>
+        batch.forEach((lei) =>
           accumulated.push({
-            isin, lei: '', legal_name: '', country: '',
+            lei, legal_name: '', country: '', region: '',
             entity_status: '', registration_status: '',
             error: 'Request failed',
           }),
         );
       }
-      const current = Math.min(i + BATCH_SIZE, unique.length);
-      setProgress({ current, total: unique.length });
-      setStatusText(`Looking up ISIN ${current} of ${unique.length}…`);
+      const current = Math.min(i + BATCH_SIZE, codes.length);
+      setProgress({ current, total: codes.length });
+      setStatusText(`Looking up LEI ${current} of ${codes.length}…`);
       setResults([...accumulated]);
     }
 
     setLoading(false);
     setStatusText('Done.');
-    if (accumulated.length === 0) setError('No results found.');
   }, []);
 
   const handleManualLookup = useCallback(() => {
-    const isins = input.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
-    runLookup(isins);
+    runLookup(input.split(/[\n,;\s]+/));
   }, [input, runLookup]);
 
   const handleCsvLookup = useCallback(() => {
-    const colIndex = csvHeaders.indexOf(isinColumn);
+    const colIndex = csvHeaders.indexOf(leiColumn);
     if (colIndex === -1) { setError('Selected column not found.'); return; }
-    const isins = csvRows.map((r) => r[colIndex] ?? '').filter(Boolean);
-    runLookup(isins);
-  }, [csvHeaders, csvRows, isinColumn, runLookup]);
+    runLookup(csvRows.map((r) => r[colIndex] ?? ''));
+  }, [csvHeaders, csvRows, leiColumn, runLookup]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -175,14 +186,6 @@ export default function IsinLookupSection() {
   // -------------------------------------------------------------------------
   // Export
   // -------------------------------------------------------------------------
-
-  const handleExportCsv = useCallback(() => {
-    downloadCsv(resultsToCsv(results), 'isin_lookup_results.csv');
-  }, [results]);
-
-  const handleExportXlsx = useCallback(() => {
-    exportIsinXlsx(results);
-  }, [results]);
 
   const [exportOpen, setExportOpen] = useState(false);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
@@ -201,12 +204,12 @@ export default function IsinLookupSection() {
   // Render
   // -------------------------------------------------------------------------
 
-  const found = results.filter((r) => !r.error);
-  const notFound = results.filter((r) => r.error);
+  const notFound = results.filter((r) => r.error).length;
+  const europe = results.filter((r) => r.region === 'Europe').length;
+  const global = results.filter((r) => r.region === 'Global').length;
 
   return (
     <>
-
       {/* Mode toggle */}
       <div className="isin-mode-toggle">
         <button
@@ -223,11 +226,18 @@ export default function IsinLookupSection() {
         </button>
       </div>
 
+      <p className="isin-desc">
+        Returns the issuer's legal name, country (ISO 3166-1 alpha-2, legal address) and
+        region for each LEI. Europe covers the EEA, UK, Switzerland, European microstates
+        and dependencies, the Western Balkans, Moldova, Ukraine and Belarus; everything else
+        is Global.
+      </p>
+
       {/* Manual mode */}
       {mode === 'manual' && (
         <div className="manual-section">
           <p className="isin-desc">
-            Enter one or more ISIN codes (one per line or comma-separated).
+            Enter one or more LEI codes (one per line or comma-separated).
             Use Ctrl+Enter to run.{' '}
             <button className="example-link" onClick={() => setInput(MANUAL_EXAMPLE)} disabled={loading}>
               Try example
@@ -260,46 +270,41 @@ export default function IsinLookupSection() {
           <FileUpload onUpload={handleFileUpload} disabled={loading} />
           <ColumnPicker
             headers={csvHeaders}
-            selected={isinColumn}
-            onChange={setIsinColumn}
+            selected={leiColumn}
+            onChange={setLeiColumn}
             onRun={handleCsvLookup}
             disabled={loading || csvHeaders.length === 0}
-            label="ISIN Column:"
+            label="LEI Column:"
           />
         </>
       )}
 
-      {/* Progress */}
-      <ProgressBar
-        current={progress.current}
-        total={progress.total}
-        statusText={statusText}
-      />
+      <ProgressBar current={progress.current} total={progress.total} statusText={statusText} />
 
       {error && <p className="isin-error">{error}</p>}
 
-      {/* Results summary bar */}
+      {/* Summary bar */}
       {results.length > 0 && !loading && (
         <div className="summary-bar">
           <div className="summary-counts">
-            <span className="badge auto">{found.length} found</span>
-            {notFound.length > 0 && (
-              <span className="badge no-match">{notFound.length} not found</span>
-            )}
+            <span className="badge auto">{results.length - notFound} found</span>
+            <span className="badge confirmed">{europe} Europe</span>
+            <span className="badge cache">{global} Global</span>
+            {notFound > 0 && <span className="badge no-match">{notFound} not found</span>}
           </div>
           <div className="summary-actions">
             <div className="export-dropdown" ref={exportDropdownRef}>
-              <button
-                className="btn"
-                onClick={() => setExportOpen(!exportOpen)}
-                disabled={results.length === 0}
-              >
+              <button className="btn" onClick={() => setExportOpen(!exportOpen)}>
                 Export ▾
               </button>
               {exportOpen && (
                 <div className="export-dropdown-menu">
-                  <button onClick={() => { handleExportCsv(); setExportOpen(false); }}>Export CSV</button>
-                  <button onClick={() => { handleExportXlsx(); setExportOpen(false); }}>Export XLSX</button>
+                  <button onClick={() => { downloadCsv(resultsToCsv(results), 'issuer_details.csv'); setExportOpen(false); }}>
+                    Export CSV
+                  </button>
+                  <button onClick={() => { exportXlsx(results); setExportOpen(false); }}>
+                    Export XLSX
+                  </button>
                 </div>
               )}
             </div>
@@ -307,52 +312,27 @@ export default function IsinLookupSection() {
         </div>
       )}
 
-      {/* Found results */}
-      {found.length > 0 && (
+      {/* Results, in input order; rows that weren't found stay in place */}
+      {results.length > 0 && (
         <div className="isin-results">
           <table className="isin-table">
             <thead>
               <tr>
-                <th>ISIN</th>
                 <th>LEI</th>
-                <th>Legal Entity Name</th>
-                <th>Country</th>
-                <th>Entity Status</th>
-                <th>Registration Status</th>
+                <th>Name of Issuer</th>
+                <th>Country of Issuer</th>
+                <th>Region</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {found.map((r, i) => (
-                <tr key={i} style={{ background: statusColor(r.entity_status) }}>
-                  <td className="mono">{r.isin}</td>
+              {results.map((r, i) => (
+                <tr key={i} className={r.error ? 'issuer-row-error' : undefined}>
                   <td className="mono">{r.lei}</td>
-                  <td>{r.legal_name}</td>
+                  <td>{r.error || r.legal_name}</td>
                   <td>{r.country}</td>
-                  <td>{r.entity_status}</td>
-                  <td>{r.registration_status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Not found / errors */}
-      {notFound.length > 0 && (
-        <div className="isin-not-found">
-          <h4>Not found / errors ({notFound.length})</h4>
-          <table className="isin-table isin-table-error">
-            <thead>
-              <tr>
-                <th>ISIN</th>
-                <th>Reason</th>
-              </tr>
-            </thead>
-            <tbody>
-              {notFound.map((r, i) => (
-                <tr key={i}>
-                  <td className="mono">{r.isin}</td>
-                  <td>{r.error}</td>
+                  <td>{r.region}</td>
+                  <td>{r.error ? '' : `${r.entity_status} / ${r.registration_status}`}</td>
                 </tr>
               ))}
             </tbody>

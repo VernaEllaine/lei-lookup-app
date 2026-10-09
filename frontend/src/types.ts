@@ -160,6 +160,20 @@ export interface IsinLookupResponse {
   results: IsinResult[];
 }
 
+export interface LeiDetail {
+  lei: string;
+  legal_name: string;
+  country: string;   // ISO 3166-1 alpha-2, legal address
+  region: string;    // "Europe" | "Global" | ""
+  entity_status: string;
+  registration_status: string;
+  error: string;
+}
+
+export interface LeiDetailsResponse {
+  results: LeiDetail[];
+}
+
 export interface GleifLocalStatus {
   available: boolean;
   publish_date?: string;

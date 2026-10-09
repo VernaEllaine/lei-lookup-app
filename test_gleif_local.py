@@ -156,3 +156,67 @@ def test_rebuild_switches_current_db(local_copy, tmp_path):
     gl.build(lei_zip, None, log=lambda _m: None)
     assert gl._current_db_path() != first
     assert gl.get_record("YEH5ZCD6E441RHVHD759") is None
+
+
+# ---------------------------------------------------------------------------
+# Issuer details endpoint (/api/lei-details) and region mapping
+# ---------------------------------------------------------------------------
+
+def test_region_for():
+    from backend.regions import region_for
+
+    assert region_for("de") == "Europe"
+    assert region_for("GB") == "Europe"
+    assert region_for("CH") == "Europe"
+    assert region_for("US") == "Global"
+    assert region_for("RU") == "Global"
+    assert region_for("TR") == "Global"
+    assert region_for("") == ""
+
+
+def _post_lei_details(leis):
+    from fastapi.testclient import TestClient
+    from backend.main import app
+
+    # No `with`: the endpoint doesn't need the startup hooks (rate limiter,
+    # cache), and running them again here interferes with other test modules.
+    client = TestClient(app)
+    return client.post("/api/lei-details", json={"leis": leis}).json()["results"]
+
+
+def test_lei_details_keeps_order_and_duplicates(local_copy, monkeypatch):
+    import backend.routes as routes
+
+    monkeypatch.setattr(routes, "_api_lei_details", lambda leis: pytest.fail("API called"))
+    results = _post_lei_details([
+        "yeh5zcd6e441rhvhd759", "815600AD83B2B6317788", "YEH5ZCD6E441RHVHD759",
+    ])
+    assert [(r["lei"], r["legal_name"], r["country"], r["region"]) for r in results] == [
+        ("YEH5ZCD6E441RHVHD759", "Bayerische Motoren Werke Aktiengesellschaft", "DE", "Europe"),
+        ("815600AD83B2B6317788", "ENEL - S.P.A.", "IT", "Europe"),
+        ("YEH5ZCD6E441RHVHD759", "Bayerische Motoren Werke Aktiengesellschaft", "DE", "Europe"),
+    ]
+    assert all(r["error"] == "" for r in results)
+
+
+def test_lei_details_falls_back_to_api_and_flags_bad_input(local_copy, monkeypatch):
+    import backend.routes as routes
+
+    asked = []
+
+    def fake_api(leis):
+        asked.extend(leis)
+        return {"HWUPKR0MPOU8FGXBT394": {
+            "legal_name": "Apple Inc.", "country": "US",
+            "status": "ACTIVE", "registration_status": "ISSUED",
+        }}
+
+    monkeypatch.setattr(routes, "_api_lei_details", fake_api)
+    results = _post_lei_details([
+        "HWUPKR0MPOU8FGXBT394", "NOTANLEI", "ZZZZZZZZZZZZZZZZZZ00", "815600AD83B2B6317788",
+    ])
+    assert asked == ["HWUPKR0MPOU8FGXBT394", "ZZZZZZZZZZZZZZZZZZ00"]
+    assert (results[0]["legal_name"], results[0]["region"]) == ("Apple Inc.", "Global")
+    assert results[1]["error"] == "Not a valid LEI format"
+    assert results[2]["error"] == "LEI not found in GLEIF"
+    assert results[3]["region"] == "Europe"

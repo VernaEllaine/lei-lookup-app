@@ -569,6 +569,11 @@ h1 {
   background: #fff8f8;
 }
 
+.issuer-row-error td {
+  background: #fdf2f1;
+  color: #78201b;
+}
+
 .mono {
   font-family: monospace;
   font-size: 12px;
