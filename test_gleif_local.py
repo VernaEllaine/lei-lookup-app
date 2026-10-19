@@ -320,8 +320,11 @@ def test_sector_rules():
     assert classify("INTERNATIONAL_ORGANIZATION", "", ["European Investment Bank"]) == (
         "SPS", "Category: INTERNATIONAL_ORGANIZATION")
     assert classify("RESIDENT_GOVERNMENT_ENTITY", "LOCAL_GOVERNMENT", ["Stadt Wien"])[0] == "SPS"
-    # Social security funds aren't in the SPS subcategories
-    assert classify("RESIDENT_GOVERNMENT_ENTITY", "SOCIAL_SECURITY", ["Caisse"])[0] == "Other"
+    # Every government entity counts, whatever its subcategory
+    assert classify("RESIDENT_GOVERNMENT_ENTITY", "SOCIAL_SECURITY", ["Caisse"]) == (
+        "SPS", "Category: RESIDENT_GOVERNMENT_ENTITY / SOCIAL_SECURITY")
+    assert classify("RESIDENT_GOVERNMENT_ENTITY", "", ["Agency"]) == (
+        "SPS", "Category: RESIDENT_GOVERNMENT_ENTITY")
     assert classify("GENERAL", "", ["Landesbank Baden-Württemberg"]) == (
         "Bank", 'Name contains "bank"')
     assert classify("GENERAL", "", ["BANCO SANTANDER"])[0] == "Bank"

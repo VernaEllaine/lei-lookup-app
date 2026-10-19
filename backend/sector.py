@@ -2,9 +2,9 @@
 
 Rules (first match wins):
 
-1. SPS (sovereigns and public sector): EntityCategory INTERNATIONAL_ORGANIZATION,
-   or RESIDENT_GOVERNMENT_ENTITY with EntitySubCategory CENTRAL_GOVERNMENT,
-   STATE_GOVERNMENT or LOCAL_GOVERNMENT.
+1. SPS (sovereigns and public sector): EntityCategory INTERNATIONAL_ORGANIZATION
+   or RESIDENT_GOVERNMENT_ENTITY (any EntitySubCategory: central, state or
+   local government, social security, or none given).
 2. Banks: EntityCategory GENERAL and the legal or English name contains
    "Bank", "Banco", "Banque", "Banca", "Caja", "Caixa", "Sparkasse",
    "Credit Union" or "Savings Bank", and isn't a foundation (no "Stiftung",
@@ -28,8 +28,6 @@ BANK = "Bank"
 PROJECT_FINANCE = "Project Finance"
 UTILITIES = "Utilities"
 OTHER = "Other"
-
-_SPS_SUBCATEGORIES = {"CENTRAL_GOVERNMENT", "STATE_GOVERNMENT", "LOCAL_GOVERNMENT"}
 
 # Bank terms match anywhere in a word so compounds like "Landesbank" or
 # "Kreissparkasse" count, except "Caja" (Spanish for "box" too), which must be
@@ -56,10 +54,10 @@ def classify(category: str, subcategory: str, names: list[str],
     text = " | ".join(n for n in names if n)
     bic_note = "; BIC registered" if has_bic else ""
 
-    if category == "INTERNATIONAL_ORGANIZATION":
-        return SPS, "Category: INTERNATIONAL_ORGANIZATION"
-    if category == "RESIDENT_GOVERNMENT_ENTITY" and subcategory in _SPS_SUBCATEGORIES:
-        return SPS, f"Category: RESIDENT_GOVERNMENT_ENTITY / {subcategory}"
+    basis = f"Category: {category or 'unknown'}" + (f" / {subcategory}" if subcategory else "")
+
+    if category in ("INTERNATIONAL_ORGANIZATION", "RESIDENT_GOVERNMENT_ENTITY"):
+        return SPS, basis
 
     if category == "GENERAL":
         for sector, pattern in ((BANK, _BANK), (PROJECT_FINANCE, _PROJECT),
@@ -70,5 +68,4 @@ def classify(category: str, subcategory: str, names: list[str],
             if m:
                 return sector, f'Name contains "{m.group(0)}"{bic_note}'
 
-    basis = f"Category: {category or 'unknown'}" + (f" / {subcategory}" if subcategory else "")
     return OTHER, basis + bic_note

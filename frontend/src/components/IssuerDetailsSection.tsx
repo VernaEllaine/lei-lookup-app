@@ -230,8 +230,8 @@ export default function IssuerDetailsSection() {
         Returns the issuer's legal name, country (ISO 3166-1 alpha-2, legal address) and
         region for each LEI. Europe covers the EEA, UK, Switzerland, European microstates
         and dependencies, the Western Balkans, Moldova, Ukraine and Belarus; everything else
-        is Global. Sector is SPS for international organisations and central, state or local
-        governments; otherwise Bank, Project Finance or Utilities when the name contains a
+        is Global. Sector is SPS (sovereigns and public sector) for international organisations
+        and government entities; otherwise Bank, Project Finance or Utilities when the name contains a
         sector keyword, else Other. Hover a sector to see why it was chosen.
       </p>
 
