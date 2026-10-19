@@ -40,3 +40,11 @@ def no_local_gleif(tmp_path_factory):
     gl.DATA_DIR = str(tmp_path_factory.mktemp("gleif_empty"))
     yield
     gl.DATA_DIR = original
+
+
+@pytest.fixture(autouse=True)
+def fresh_english_name_cache():
+    """lei_lookup memoises English names fetched from the API; start each test empty."""
+    import lei_lookup
+
+    lei_lookup._english_name_cache.clear()

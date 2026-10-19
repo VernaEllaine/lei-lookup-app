@@ -28,10 +28,10 @@ function downloadCsv(content: string, filename: string): void {
 }
 
 function resultsToCsv(results: ManualValidationResult[]): string {
-  const header = 'Entity Name,LEI,Legal Name,Jurisdiction,Entity Status,Registration Status,Flag,Error';
+  const header = 'Entity Name,LEI,Legal Name,Issuer English Name,Jurisdiction,Entity Status,Registration Status,Flag,Error';
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const rows = results.map((r) =>
-    [r.entity_name, r.lei, r.legal_name, r.jurisdiction,
+    [r.entity_name, r.lei, r.legal_name, r.english_name ?? '', r.jurisdiction,
      r.entity_status, r.registration_status, r.flag, r.error].map(escape).join(','),
   );
   return [header, ...rows].join('\r\n');
@@ -181,6 +181,7 @@ export default function ManualValidationSection() {
                 <th>Entity Name</th>
                 <th>LEI</th>
                 <th>Legal Name (GLEIF)</th>
+                <th>Issuer English Name</th>
                 <th>Jurisdiction</th>
                 <th>Entity Status</th>
                 <th>Reg. Status</th>
@@ -193,6 +194,7 @@ export default function ManualValidationSection() {
                   <td>{r.entity_name}</td>
                   <td className="mono">{r.lei}</td>
                   <td>{r.legal_name}</td>
+                  <td>{r.english_name}</td>
                   <td>{r.jurisdiction}</td>
                   <td>{r.entity_status}</td>
                   <td>{r.registration_status}</td>

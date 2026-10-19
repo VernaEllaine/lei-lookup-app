@@ -27,6 +27,7 @@ from backend.models import (
     ValidateLeiResponse,
 )
 from backend.regions import region_for
+from backend.sector import classify as classify_sector
 from backend.worker import run_lookup
 from backend.validation_worker import run_validation
 
@@ -69,10 +70,10 @@ cache = CacheManager()
 
 # Import detect helper
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from lei_lookup import _detect_name_column
+from lei_lookup import _detect_name_column, english_names
 
 LEI_FIELDS = [
-    "lei", "lei_legal_name", "lei_jurisdiction", "lei_status",
+    "lei", "lei_legal_name", "lei_english_name", "lei_jurisdiction", "lei_status",
     "lei_confidence", "lei_match_status", "lei_candidates",
 ]
 
@@ -94,6 +95,14 @@ _sessions: dict[str, SessionState] = {}
 
 def _get_session(session_id: str) -> SessionState | None:
     return _sessions.get(session_id)
+
+
+async def _add_english_names(rows: list[dict], lei_key: str = "lei") -> list[dict]:
+    """Set ``english_name`` on each row from its LEI (blank if none)."""
+    names = await asyncio.to_thread(english_names, [r.get(lei_key, "") for r in rows])
+    for r in rows:
+        r["english_name"] = names.get((r.get(lei_key) or "").strip().upper(), "")
+    return rows
 
 
 def _build_summary(session_id: str) -> dict:
@@ -214,7 +223,7 @@ async def get_results(
 ):
     result = database.get_results_page(page, page_size, status, session_id=session_id)
     return {
-        "rows": result["rows"],
+        "rows": await _add_english_names(result["rows"]),
         "total": result["total"],
         "page": result["page"],
         "page_size": result["page_size"],
@@ -261,7 +270,7 @@ async def update_cell(row_id: int, update: CellUpdate):
             cache.flush()
 
     database.update_result_by_id(row_id, db_update)
-    updated_row = database.get_result_by_id(row_id)
+    updated_row = (await _add_english_names([database.get_result_by_id(row_id)]))[0]
     # Derive session_id from the row's session
     sid = _session_id_for_row(row_id)
     return {"row": updated_row, "summary": _build_summary(sid)}
@@ -358,7 +367,7 @@ async def confirm_all(session_id: str = Query("")):
 @router.get("/export")
 async def export_csv(session_id: str = Query("")):
     session = _get_session(session_id)
-    all_rows = database.get_all_results_for_export(session_id)
+    all_rows = await _add_english_names(database.get_all_results_for_export(session_id))
     if not all_rows:
         return StreamingResponse(
             iter([""]),
@@ -376,6 +385,7 @@ async def export_csv(session_id: str = Query("")):
         out = dict(original)
         out["lei"] = row_data["lei"]
         out["lei_legal_name"] = row_data["legal_name"]
+        out["lei_english_name"] = row_data["english_name"]
         out["lei_jurisdiction"] = row_data["jurisdiction"]
         out["lei_status"] = row_data["status"]
         out["lei_confidence"] = row_data["confidence"]
@@ -394,7 +404,7 @@ async def export_csv(session_id: str = Query("")):
 @router.get("/export-xlsx")
 async def export_xlsx(session_id: str = Query("")):
     session = _get_session(session_id)
-    all_rows = database.get_all_results_for_export(session_id)
+    all_rows = await _add_english_names(database.get_all_results_for_export(session_id))
     if not all_rows:
         return StreamingResponse(
             iter([b""]),
@@ -415,6 +425,7 @@ async def export_xlsx(session_id: str = Query("")):
         out = dict(original)
         out["lei"] = row_data["lei"]
         out["lei_legal_name"] = row_data["legal_name"]
+        out["lei_english_name"] = row_data["english_name"]
         out["lei_jurisdiction"] = row_data["jurisdiction"]
         out["lei_status"] = row_data["status"]
         out["lei_confidence"] = row_data["confidence"]
@@ -602,7 +613,7 @@ async def get_validation_results(
 ):
     result = database.get_validation_results_page(page, page_size, flag, session_id=session_id)
     return {
-        "rows": result["rows"],
+        "rows": await _add_english_names(result["rows"], "provided_lei"),
         "total": result["total"],
         "page": result["page"],
         "page_size": result["page_size"],
@@ -643,7 +654,8 @@ async def accept_suggested_lei(
 
 @router.get("/validate/export")
 async def export_validation_csv(session_id: str = Query("")):
-    all_rows = database.get_all_validation_results_for_export(session_id)
+    all_rows = await _add_english_names(
+        database.get_all_validation_results_for_export(session_id), "provided_lei")
     if not all_rows:
         return StreamingResponse(
             iter([""]),
@@ -652,7 +664,7 @@ async def export_validation_csv(session_id: str = Query("")):
 
     output = io.StringIO()
     output_headers = [
-        "entity_name", "provided_lei", "entity_status", "registration_status",
+        "entity_name", "provided_lei", "english_name", "entity_status", "registration_status",
         "flag", "suggested_lei", "suggested_legal_name", "suggested_confidence",
     ]
     writer = csv.DictWriter(output, fieldnames=output_headers, extrasaction="ignore")
@@ -736,7 +748,7 @@ async def manual_lookup(names: str = Query(...)):
                 "candidates": "", "error": str(exc),
             })
 
-    return {"results": results}
+    return {"results": await _add_english_names(results)}
 
 
 @router.post("/validate/manual")
@@ -775,12 +787,29 @@ async def manual_validate(entries: list[dict]):
             "error": "",
         })
 
-    return {"results": results}
+    return {"results": await _add_english_names(results)}
+
+
+def _isin_row(isin: str, lei: str = "", legal_name: str = "", country: str = "",
+              entity_status: str = "", registration_status: str = "", error: str = "") -> dict:
+    """One ISIN lookup result, with the same issuer fields as /lei-details."""
+    return {
+        "isin": isin,
+        "lei": lei,
+        "legal_name": legal_name,
+        "english_name": "",
+        "country": country,
+        "region": region_for(country),
+        "entity_status": entity_status,
+        "registration_status": registration_status,
+        "error": error,
+    }
 
 
 @router.get("/isin-lookup")
 async def isin_lookup(isins: str = Query(...)):
-    """Look up ISIN codes via the GLEIF lei-records filter and return LEI + entity details."""
+    """Look up ISIN codes and return the issuer's LEI, name, country (ISO
+    alpha-2, legal address), region and status."""
     isin_list = [part.strip().upper() for part in isins.replace("\n", ",").split(",") if part.strip()]
     if not isin_list:
         return {"results": []}
@@ -798,15 +827,10 @@ async def isin_lookup(isins: str = Query(...)):
                 if rec["lei"] in seen_leis:
                     continue
                 seen_leis.add(rec["lei"])
-                results.append({
-                    "isin": isin,
-                    "lei": rec["lei"],
-                    "legal_name": rec["legal_name"],
-                    "country": rec["jurisdiction"],
-                    "entity_status": rec["status"],
-                    "registration_status": rec["registration_status"],
-                    "error": "",
-                })
+                results.append(_isin_row(
+                    isin, rec["lei"], rec["legal_name"], rec["country"],
+                    rec["status"], rec["registration_status"],
+                ))
             continue
 
         try:
@@ -817,20 +841,12 @@ async def isin_lookup(isins: str = Query(...)):
                 timeout=15,
             )
             if resp.status_code != 200:
-                results.append({
-                    "isin": isin, "lei": "", "legal_name": "", "country": "",
-                    "entity_status": "", "registration_status": "",
-                    "error": f"ISIN lookup failed (HTTP {resp.status_code})",
-                })
+                results.append(_isin_row(isin, error=f"ISIN lookup failed (HTTP {resp.status_code})"))
                 continue
 
             records = resp.json().get("data", [])
             if not records:
-                results.append({
-                    "isin": isin, "lei": "", "legal_name": "", "country": "",
-                    "entity_status": "", "registration_status": "",
-                    "error": "No LEI found for this ISIN",
-                })
+                results.append(_isin_row(isin, error="No LEI found for this ISIN"))
                 continue
 
             for rec in records:
@@ -843,24 +859,18 @@ async def isin_lookup(isins: str = Query(...)):
                 entity = attrs.get("entity", {})
                 registration = attrs.get("registration", {})
 
-                results.append({
-                    "isin": isin,
-                    "lei": lei,
-                    "legal_name": entity.get("legalName", {}).get("name", ""),
-                    "country": entity.get("jurisdiction", ""),
-                    "entity_status": entity.get("status", ""),
-                    "registration_status": registration.get("status", ""),
-                    "error": "",
-                })
+                results.append(_isin_row(
+                    isin, lei,
+                    entity.get("legalName", {}).get("name", ""),
+                    entity.get("legalAddress", {}).get("country", ""),
+                    entity.get("status", ""),
+                    registration.get("status", ""),
+                ))
 
         except Exception as exc:
-            results.append({
-                "isin": isin, "lei": "", "legal_name": "", "country": "",
-                "entity_status": "", "registration_status": "",
-                "error": str(exc),
-            })
+            results.append(_isin_row(isin, error=str(exc)))
 
-    return {"results": results}
+    return {"results": await _add_english_names(results)}
 
 
 _LEI_FORMAT = re.compile(r"^[A-Z0-9]{18}[0-9]{2}$")
@@ -887,14 +897,18 @@ def _api_lei_details(leis: list[str]) -> dict[str, dict]:
                 "country": entity.get("legalAddress", {}).get("country", ""),
                 "status": entity.get("status", ""),
                 "registration_status": attrs.get("registration", {}).get("status", ""),
+                "category": entity.get("category") or "",
+                "subcategory": entity.get("subCategory") or "",
+                "bics": attrs.get("bic") or [],
             }
     return found
 
 
 @router.post("/lei-details")
 async def lei_details(payload: dict):
-    """Return issuer name, country (ISO alpha-2, legal address) and region
-    for each LEI in ``{"leis": [...]}``, in the order given.
+    """Return issuer name, country (ISO alpha-2, legal address), region and
+    sector (see backend.sector) for each LEI in ``{"leis": [...]}``, in the
+    order given.
 
     Reads the local GLEIF copy; LEIs missing from it are fetched from the API.
     """
@@ -905,7 +919,7 @@ async def lei_details(payload: dict):
     for lei in valid:
         rec = gleif_local.get_record(lei)
         if rec is not None:
-            details[lei] = rec
+            details[lei] = {**rec, "bics": gleif_local.bics_for_lei(lei)}
 
     api_error = ""
     missing = sorted(valid - details.keys())
@@ -932,8 +946,22 @@ async def lei_details(payload: dict):
             "region": region_for(country),
             "entity_status": rec["status"] if rec else "",
             "registration_status": rec["registration_status"] if rec else "",
+            "sector": "",
+            "sector_basis": "",
             "error": error,
         })
+    results = await _add_english_names(results)
+
+    # Classify after English names are filled in, since the name rules
+    # check both the legal and the English name.
+    for row in results:
+        rec = details.get(row["lei"])
+        if rec is not None and not row["error"]:
+            row["sector"], row["sector_basis"] = classify_sector(
+                rec.get("category", ""), rec.get("subcategory", ""),
+                [row["legal_name"], row.get("english_name", "")],
+                has_bic=bool(rec.get("bics")),
+            )
     return {"results": results}
 
 
@@ -950,11 +978,11 @@ async def export_isin_xlsx(payload: dict):
 
     results = payload.get("results", [])
     headers = [
-        "ISIN", "LEI", "Legal Entity Name", "Country",
+        "ISIN", "LEI", "Name of Issuer", "Issuer English Name", "Country of Issuer", "Region",
         "Entity Status", "Registration Status", "Error",
     ]
     keys = [
-        "isin", "lei", "legal_name", "country",
+        "isin", "lei", "legal_name", "english_name", "country", "region",
         "entity_status", "registration_status", "error",
     ]
 
@@ -977,7 +1005,8 @@ async def export_isin_xlsx(payload: dict):
 
 @router.get("/validate/export-xlsx")
 async def export_validation_xlsx(session_id: str = Query("")):
-    all_rows = database.get_all_validation_results_for_export(session_id)
+    all_rows = await _add_english_names(
+        database.get_all_validation_results_for_export(session_id), "provided_lei")
     if not all_rows:
         return StreamingResponse(
             iter([b""]),
@@ -987,7 +1016,7 @@ async def export_validation_xlsx(session_id: str = Query("")):
     import openpyxl
 
     output_headers = [
-        "entity_name", "provided_lei", "entity_status", "registration_status",
+        "entity_name", "provided_lei", "english_name", "entity_status", "registration_status",
         "flag", "suggested_lei", "suggested_legal_name", "suggested_confidence",
     ]
 

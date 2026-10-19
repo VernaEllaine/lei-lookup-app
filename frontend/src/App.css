@@ -402,13 +402,14 @@ h1 {
 }
 
 /* Column widths — shared between header and virtual rows */
-.col-entity { width: 18%; }
-.col-lei { width: 22%; }
-.col-legal { width: 18%; }
-.col-jurisdiction { width: 10%; }
-.col-status { width: 10%; }
-.col-confidence { width: 10%; }
-.col-match { width: 12%; }
+.col-entity { width: 16%; }
+.col-lei { width: 18%; }
+.col-legal { width: 16%; }
+.col-english { width: 14%; }
+.col-jurisdiction { width: 8%; }
+.col-status { width: 9%; }
+.col-confidence { width: 9%; }
+.col-match { width: 10%; }
 
 /* Editable Cell */
 .editable-cell {
@@ -451,14 +452,15 @@ h1 {
 }
 
 /* Validation table column widths */
-.vcol-entity { width: 16%; }
-.vcol-lei { width: 16%; }
-.vcol-estatus { width: 9%; }
-.vcol-rstatus { width: 9%; }
-.vcol-flag { width: 8%; }
-.vcol-slei { width: 16%; }
-.vcol-slegal { width: 16%; }
-.vcol-sconf { width: 10%; }
+.vcol-entity { width: 14%; }
+.vcol-lei { width: 15%; }
+.vcol-english { width: 13%; }
+.vcol-estatus { width: 8%; }
+.vcol-rstatus { width: 8%; }
+.vcol-flag { width: 7%; }
+.vcol-slei { width: 14%; }
+.vcol-slegal { width: 13%; }
+.vcol-sconf { width: 8%; }
 
 .validation-flag {
   font-weight: 600;

@@ -26,10 +26,10 @@ function downloadCsv(content: string, filename: string): void {
 }
 
 function resultsToCsv(results: ManualLookupResult[]): string {
-  const header = 'Query,LEI,Legal Name,Jurisdiction,Status,Confidence,Match Status,Candidates,Error';
+  const header = 'Query,LEI,Legal Name,Issuer English Name,Jurisdiction,Status,Confidence,Match Status,Candidates,Error';
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const rows = results.map((r) =>
-    [r.query, r.lei, r.legal_name, r.jurisdiction, r.status,
+    [r.query, r.lei, r.legal_name, r.english_name ?? '', r.jurisdiction, r.status,
      r.confidence, r.match_status, r.candidates, r.error].map(escape).join(','),
   );
   return [header, ...rows].join('\r\n');
@@ -106,7 +106,7 @@ export default function ManualLookupSection() {
       setResults((prev) =>
         prev.map((r, i) =>
           i === index
-            ? { ...r, lei: newLei, legal_name: v.legal_name, jurisdiction: v.jurisdiction, status: v.entity_status, match_status: 'CONFIRMED' }
+            ? { ...r, lei: newLei, legal_name: v.legal_name, english_name: v.english_name, jurisdiction: v.jurisdiction, status: v.entity_status, match_status: 'CONFIRMED' }
             : r,
         ),
       );
@@ -179,6 +179,7 @@ export default function ManualLookupSection() {
                 <th>Query</th>
                 <th>LEI</th>
                 <th>Legal Name</th>
+                <th>Issuer English Name</th>
                 <th>Jurisdiction</th>
                 <th>Confidence</th>
                 <th>Match Status</th>
@@ -196,6 +197,7 @@ export default function ManualLookupSection() {
                     />
                   </td>
                   <td>{r.legal_name}</td>
+                  <td>{r.english_name}</td>
                   <td>{r.jurisdiction}</td>
                   <td>{r.confidence}</td>
                   <td>{r.match_status}</td>

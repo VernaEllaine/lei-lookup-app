@@ -3,6 +3,7 @@ export interface RowResult {
   entity_name: string;
   lei: string;
   legal_name: string;
+  english_name?: string;   // Issuer English name ('' if none registered)
   jurisdiction: string;
   status: string;
   confidence: string;
@@ -62,6 +63,7 @@ export interface ValidationRowResult {
   index: number;
   entity_name: string;
   provided_lei: string;
+  english_name?: string;   // Issuer English name ('' if none registered)
   entity_status: string;
   registration_status: string;
   flag: string;
@@ -111,6 +113,7 @@ export interface ManualLookupResult {
   query: string;
   lei: string;
   legal_name: string;
+  english_name?: string;   // Issuer English name ('' if none registered)
   jurisdiction: string;
   status: string;
   confidence: string;
@@ -135,6 +138,7 @@ export interface ManualValidationResult {
   legal_name: string;
   jurisdiction: string;
   flag: string;
+  english_name?: string;   // Issuer English name ('' if none registered)
   error: string;
 }
 
@@ -150,7 +154,9 @@ export interface IsinResult {
   isin: string;
   lei: string;
   legal_name: string;
-  country: string;
+  english_name?: string;   // Issuer English name ('' if none registered)
+  country: string;   // ISO 3166-1 alpha-2, legal address
+  region: string;    // "Europe" | "Global" | ""
   entity_status: string;
   registration_status: string;
   error: string;
@@ -163,10 +169,13 @@ export interface IsinLookupResponse {
 export interface LeiDetail {
   lei: string;
   legal_name: string;
+  english_name?: string;   // Issuer English name ('' if none registered)
   country: string;   // ISO 3166-1 alpha-2, legal address
   region: string;    // "Europe" | "Global" | ""
   entity_status: string;
   registration_status: string;
+  sector?: string;        // "SPS" | "Bank" | "Project Finance" | "Utilities" | "Other" | ""
+  sector_basis?: string;  // Which rule set the sector
   error: string;
 }
 

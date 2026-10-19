@@ -144,10 +144,58 @@ def _api_record(rec: dict) -> dict:
     return {
         "lei": attrs.get("lei", ""),
         "legal_name": entity.get("legalName", {}).get("name", ""),
+        "english_name": api_english_name(entity),
         "jurisdiction": entity.get("jurisdiction", ""),
         "status": entity.get("status", ""),
         "registration_status": registration.get("status", ""),
     }
+
+
+def api_english_name(entity: dict) -> str:
+    """English name from a GLEIF API ``attributes.entity`` object."""
+    legal = entity.get("legalName") or {}
+    others = [
+        (o.get("name", ""), o.get("type", ""), o.get("language", ""))
+        for o in entity.get("otherNames") or []
+    ]
+    return gleif_local.english_name(legal.get("name", ""), legal.get("language", ""), others)
+
+
+_LEI_RE = re.compile(r"^[A-Z0-9]{18}[0-9]{2}$")
+_english_name_cache: dict[str, str] = {}
+
+
+def english_names(leis) -> dict[str, str]:
+    """Map each LEI in *leis* to its English name ("" if none/unknown).
+
+    Uses the local GLEIF copy, then one batched API call for LEIs it lacks
+    (results are memoised; API failures just leave the name blank).
+    """
+    wanted = {str(lei).strip().upper() for lei in leis if lei}
+    names: dict[str, str] = {}
+    missing = []
+    local = gleif_local.has_english_names()
+    for lei in wanted:
+        rec = gleif_local.get_record(lei) if local else None
+        if rec is not None:
+            names[lei] = rec["english_name"]
+        elif lei in _english_name_cache:
+            names[lei] = _english_name_cache[lei]
+        elif _LEI_RE.match(lei):
+            missing.append(lei)
+    for i in range(0, len(missing), 100):
+        batch = missing[i:i + 100]
+        try:
+            payload = _api_get(
+                f"{GLEIF_BASE}/lei-records",
+                params={"filter[lei]": ",".join(batch), "page[size]": str(len(batch))},
+            )
+        except GleifAPIError:
+            continue
+        found = {r["lei"]: r["english_name"] for r in map(_api_record, payload.get("data", []))}
+        for lei in batch:
+            _english_name_cache[lei] = names[lei] = found.get(lei, "")
+    return {lei: names.get(lei, "") for lei in wanted}
 
 
 # Common legal-form suffixes to strip when searching
@@ -285,6 +333,7 @@ def _web_search_lei(company_name: str) -> list[dict]:
         results.append({
             "lei": rec["lei"],
             "legal_name": legal_name,
+            "english_name": rec.get("english_name", ""),
             "jurisdiction": rec["jurisdiction"],
             "status": status,
             "registration_status": reg_status,
@@ -452,6 +501,7 @@ def lookup_lei(company_name: str, max_results: int = 10) -> dict:
             {
                 "lei": rec["lei"],
                 "legal_name": rec["legal_name"],
+                "english_name": rec.get("english_name", ""),
                 "jurisdiction": rec["jurisdiction"],
                 "status": rec["status"],
                 "registration_status": rec["registration_status"],
@@ -631,6 +681,7 @@ def validate_single_lei(lei_code: str) -> dict:
                 "entity_status": "",
                 "registration_status": "",
                 "legal_name": "",
+                "english_name": "",
                 "jurisdiction": "",
                 "flag": "NOT_FOUND",
             }
@@ -638,6 +689,7 @@ def validate_single_lei(lei_code: str) -> dict:
             "entity_status": "",
             "registration_status": "",
             "legal_name": "",
+            "english_name": "",
             "jurisdiction": "",
             "flag": "ERROR",
         }
@@ -652,6 +704,7 @@ def validate_single_lei(lei_code: str) -> dict:
         registration.get("status", ""),
         entity.get("legalName", {}).get("name", ""),
         entity.get("jurisdiction", ""),
+        api_english_name(entity),
     )
 
 
@@ -667,11 +720,12 @@ def validate_single_lei_local(lei_code: str) -> dict | None:
     return _validation_result(
         rec["status"], rec["registration_status"],
         rec["legal_name"], rec["jurisdiction"],
+        english_names([rec["lei"]])[rec["lei"]],
     )
 
 
 def _validation_result(entity_status: str, reg_status: str,
-                       legal_name: str, jurisdiction: str) -> dict:
+                       legal_name: str, jurisdiction: str, english_name: str = "") -> dict:
     if entity_status == "ACTIVE" and reg_status == "ISSUED":
         flag = "OK"
     elif reg_status == "LAPSED":
@@ -683,6 +737,7 @@ def _validation_result(entity_status: str, reg_status: str,
         "entity_status": entity_status,
         "registration_status": reg_status,
         "legal_name": legal_name,
+        "english_name": english_name,
         "jurisdiction": jurisdiction,
         "flag": flag,
     }

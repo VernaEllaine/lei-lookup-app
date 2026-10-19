@@ -15,14 +15,14 @@ const BATCH_SIZE = 1000;
 const LEI_REGEX = /^[A-Z0-9]{18}[0-9]{2}$/;
 
 const EXPORT_HEADERS = [
-  'LEI', 'Name of Issuer', 'Country of Issuer', 'Region',
-  'Entity Status', 'Registration Status', 'Error',
+  'LEI', 'Name of Issuer', 'Issuer English Name', 'Country of Issuer', 'Region',
+  'Sector', 'Sector Basis', 'Entity Status', 'Registration Status', 'Error',
 ];
 
 function toExportRows(results: LeiDetail[]): string[][] {
   return results.map((r) => [
-    r.lei, r.legal_name, r.country, r.region,
-    r.entity_status, r.registration_status, r.error,
+    r.lei, r.legal_name, r.english_name ?? '', r.country, r.region,
+    r.sector ?? '', r.sector_basis ?? '', r.entity_status, r.registration_status, r.error,
   ]);
 }
 
@@ -230,7 +230,9 @@ export default function IssuerDetailsSection() {
         Returns the issuer's legal name, country (ISO 3166-1 alpha-2, legal address) and
         region for each LEI. Europe covers the EEA, UK, Switzerland, European microstates
         and dependencies, the Western Balkans, Moldova, Ukraine and Belarus; everything else
-        is Global.
+        is Global. Sector is SPS for international organisations and central, state or local
+        governments; otherwise Bank, Project Finance or Utilities when the name contains a
+        sector keyword, else Other. Hover a sector to see why it was chosen.
       </p>
 
       {/* Manual mode */}
@@ -320,8 +322,10 @@ export default function IssuerDetailsSection() {
               <tr>
                 <th>LEI</th>
                 <th>Name of Issuer</th>
+                <th>Issuer English Name</th>
                 <th>Country of Issuer</th>
                 <th>Region</th>
+                <th>Sector</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -330,8 +334,10 @@ export default function IssuerDetailsSection() {
                 <tr key={i} className={r.error ? 'issuer-row-error' : undefined}>
                   <td className="mono">{r.lei}</td>
                   <td>{r.error || r.legal_name}</td>
+                  <td>{r.english_name}</td>
                   <td>{r.country}</td>
                   <td>{r.region}</td>
+                  <td title={r.sector_basis}>{r.sector}</td>
                   <td>{r.error ? '' : `${r.entity_status} / ${r.registration_status}`}</td>
                 </tr>
               ))}
