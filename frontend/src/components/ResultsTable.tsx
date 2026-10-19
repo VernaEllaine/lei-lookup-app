@@ -50,6 +50,7 @@ export default function ResultsTable({ rows, onCellSave }: Props) {
             <th className="col-entity">Entity Name</th>
             <th className="col-lei">LEI</th>
             <th className="col-legal">Legal Name</th>
+            <th className="col-english">Issuer English Name</th>
             <th className="col-jurisdiction">Jurisdiction</th>
             <th className="col-status">Status</th>
             <th className="col-confidence">Confidence</th>
@@ -113,6 +114,13 @@ export default function ResultsTable({ rows, onCellSave }: Props) {
                     field="legal_name"
                     onSave={(field, value) => onCellSave(row.index, field, value)}
                   />
+                </div>
+                <div
+                  className={`virtual-cell col-english expandable${expanded.has(`${row.index}-english`) ? ' expanded' : ''}`}
+                  onClick={() => toggleExpand(`${row.index}-english`)}
+                  title={row.english_name}
+                >
+                  {row.english_name}
                 </div>
                 <div className="virtual-cell col-jurisdiction">
                   <EditableCell

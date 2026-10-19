@@ -15,13 +15,13 @@ const BATCH_SIZE = 1000;
 const LEI_REGEX = /^[A-Z0-9]{18}[0-9]{2}$/;
 
 const EXPORT_HEADERS = [
-  'LEI', 'Name of Issuer', 'Country of Issuer', 'Region',
+  'LEI', 'Name of Issuer', 'Issuer English Name', 'Country of Issuer', 'Region',
   'Entity Status', 'Registration Status', 'Error',
 ];
 
 function toExportRows(results: LeiDetail[]): string[][] {
   return results.map((r) => [
-    r.lei, r.legal_name, r.country, r.region,
+    r.lei, r.legal_name, r.english_name ?? '', r.country, r.region,
     r.entity_status, r.registration_status, r.error,
   ]);
 }
@@ -320,6 +320,7 @@ export default function IssuerDetailsSection() {
               <tr>
                 <th>LEI</th>
                 <th>Name of Issuer</th>
+                <th>Issuer English Name</th>
                 <th>Country of Issuer</th>
                 <th>Region</th>
                 <th>Status</th>
@@ -330,6 +331,7 @@ export default function IssuerDetailsSection() {
                 <tr key={i} className={r.error ? 'issuer-row-error' : undefined}>
                   <td className="mono">{r.lei}</td>
                   <td>{r.error || r.legal_name}</td>
+                  <td>{r.english_name}</td>
                   <td>{r.country}</td>
                   <td>{r.region}</td>
                   <td>{r.error ? '' : `${r.entity_status} / ${r.registration_status}`}</td>

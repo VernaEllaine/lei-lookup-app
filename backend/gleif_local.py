@@ -46,6 +46,10 @@ DATA_DIR = _default_data_dir()
 GOLDEN_COPY_LATEST = "https://goldencopy.gleif.org/api/v2/golden-copies/publishes/latest"
 ISIN_LATEST = "https://mapping.gleif.org/api/v2/isin-lei/latest"
 
+# Bump when the DB layout changes so the next load rebuilds even if the
+# published files haven't changed.
+SCHEMA_VERSION = 2
+
 # How many FTS hits to re-rank before returning the top results
 _CANDIDATE_POOL = 300
 _BATCH = 20_000
@@ -113,6 +117,8 @@ def _record(row: sqlite3.Row) -> dict:
     return {
         "lei": row["lei"],
         "legal_name": row["legal_name"],
+        # DBs built before SCHEMA_VERSION 2 lack this column
+        "english_name": row["english_name"] if "english_name" in row.keys() else "",
         "jurisdiction": row["jurisdiction"],
         "country": row["country"],
         "status": row["entity_status"],
@@ -181,6 +187,15 @@ def leis_for_isin(isin: str) -> list[str]:
     return [r["lei"] for r in rows]
 
 
+def has_english_names() -> bool:
+    """True when the loaded DB has the english_name column (schema 2+)."""
+    conn = _get_conn()
+    if conn is None:
+        return False
+    row = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
+    return row is not None and int(row["value"]) >= 2
+
+
 def status() -> dict:
     """Summary of the loaded data (publish date, counts) for display."""
     conn = _get_conn()
@@ -204,6 +219,34 @@ _NAME_COLUMNS = ["Entity.LegalName"] + [
 ]
 
 
+def english_name(legal_name: str, legal_lang: str,
+                 other_names: list[tuple[str, str, str]]) -> str:
+    """Pick the issuer's English name from GLEIF name data.
+
+    *other_names* are (name, type, language) tuples. Prefers an English
+    ALTERNATIVE_LANGUAGE_LEGAL_NAME, then the legal name when it is tagged
+    English; otherwise "" (no registered English name).
+    """
+    def is_en(lang: str) -> bool:
+        return (lang or "").lower().startswith("en")
+
+    for name, name_type, lang in other_names:
+        if name and name_type == "ALTERNATIVE_LANGUAGE_LEGAL_NAME" and is_en(lang):
+            return name
+    return legal_name if is_en(legal_lang) else ""
+
+
+def _csv_english_name(row: dict) -> str:
+    prefix = "Entity.OtherEntityNames.OtherEntityName"
+    others = [
+        ((row.get(f"{prefix}.{n}") or "").strip(),
+         row.get(f"{prefix}.{n}.type") or "",
+         row.get(f"{prefix}.{n}.xmllang") or "")
+        for n in range(1, 6)
+    ]
+    return english_name(row["Entity.LegalName"], row.get("Entity.LegalName.xmllang") or "", others)
+
+
 def _open_zipped_csv(zip_path: str) -> io.TextIOWrapper:
     z = zipfile.ZipFile(zip_path)
     name = next(n for n in z.namelist() if n.lower().endswith(".csv"))
@@ -216,6 +259,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY,
             lei TEXT NOT NULL UNIQUE,
             legal_name TEXT NOT NULL DEFAULT '',
+            english_name TEXT NOT NULL DEFAULT '',
             jurisdiction TEXT NOT NULL DEFAULT '',
             country TEXT NOT NULL DEFAULT '',
             entity_status TEXT NOT NULL DEFAULT '',
@@ -241,7 +285,7 @@ def _load_entities(conn: sqlite3.Connection, lei_zip: str, log) -> int:
     count = 0
 
     def flush() -> None:
-        conn.executemany("INSERT INTO entities VALUES (?,?,?,?,?,?,?)", entities)
+        conn.executemany("INSERT INTO entities VALUES (?,?,?,?,?,?,?,?)", entities)
         conn.executemany("INSERT INTO name_fts (name, entity_id) VALUES (?,?)", names)
         entities.clear()
         names.clear()
@@ -254,6 +298,7 @@ def _load_entities(conn: sqlite3.Connection, lei_zip: str, log) -> int:
             count,
             row["LEI"],
             row["Entity.LegalName"],
+            _csv_english_name(row),
             row["Entity.LegalJurisdiction"],
             row["Entity.LegalAddress.Country"],
             entity_status,
@@ -326,6 +371,7 @@ def build(lei_zip: str, isin_zip: str | None, publish_date: str = "", log=print)
         ("isin_file", os.path.basename(isin_zip) if isin_zip else ""),
         ("isin_count", str(isin_count)),
         ("loaded_at", time.strftime("%Y-%m-%d %H:%M:%S")),
+        ("schema_version", str(SCHEMA_VERSION)),
     ])
     conn.commit()
     conn.close()
@@ -381,7 +427,11 @@ def download_latest(log=print, force: bool = False) -> tuple[str, str, str] | No
     isin = requests.get(ISIN_LATEST, timeout=30).json()["data"]["attributes"]
 
     loaded = status()
-    if not force and (loaded.get("lei_file"), loaded.get("isin_file")) == (lei_name, isin["fileName"]):
+    current = (
+        (loaded.get("lei_file"), loaded.get("isin_file")) == (lei_name, isin["fileName"])
+        and loaded.get("schema_version") == str(SCHEMA_VERSION)
+    )
+    if current and not force:
         log(f"Already up to date ({lei_name}, {isin['fileName']})")
         return None
 

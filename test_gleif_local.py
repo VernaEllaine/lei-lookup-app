@@ -14,15 +14,20 @@ LEI_HEADER = [
     "Entity.OtherEntityNames.OtherEntityName.1",
     "Entity.LegalAddress.Country", "Entity.LegalJurisdiction",
     "Entity.EntityStatus", "Registration.RegistrationStatus",
+    "Entity.LegalName.xmllang",
+    "Entity.OtherEntityNames.OtherEntityName.1.type",
+    "Entity.OtherEntityNames.OtherEntityName.1.xmllang",
 ]
 
 LEI_ROWS = [
-    ["815600AD83B2B6317788", "ENEL - S.P.A.", "", "IT", "IT", "ACTIVE", "ISSUED"],
+    ["815600AD83B2B6317788", "ENEL - S.P.A.", "", "IT", "IT", "ACTIVE", "ISSUED", "it", "", ""],
     ["YEH5ZCD6E441RHVHD759", "Bayerische Motoren Werke Aktiengesellschaft", "BMW AG",
-     "DE", "DE", "ACTIVE", "ISSUED"],
-    ["5299009N55YRQC69CN08", "BMW Finance N.V.", "", "NL", "NL", "ACTIVE", "ISSUED"],
-    ["LAPSED00000000000001", "Société Générale Lapsed SA", "", "FR", "FR", "ACTIVE", "LAPSED"],
-    ["O2RNE8IBXP4R0TD8PU41", "SOCIÉTÉ GÉNÉRALE", "", "FR", "FR", "ACTIVE", "ISSUED"],
+     "DE", "DE", "ACTIVE", "ISSUED", "de", "TRADING_OR_OPERATING_NAME", "de"],
+    ["5299009N55YRQC69CN08", "BMW Finance N.V.", "", "NL", "NL", "ACTIVE", "ISSUED", "en", "", ""],
+    ["LAPSED00000000000001", "Société Générale Lapsed SA", "", "FR", "FR", "ACTIVE", "LAPSED",
+     "fr", "", ""],
+    ["O2RNE8IBXP4R0TD8PU41", "SOCIÉTÉ GÉNÉRALE", "Societe Generale SA", "FR", "FR", "ACTIVE",
+     "ISSUED", "fr", "ALTERNATIVE_LANGUAGE_LEGAL_NAME", "en-GB"],
 ]
 
 ISIN_ROWS = [["YEH5ZCD6E441RHVHD759", "DE0005190003"]]
@@ -212,6 +217,7 @@ def test_lei_details_falls_back_to_api_and_flags_bad_input(local_copy, monkeypat
         }}
 
     monkeypatch.setattr(routes, "_api_lei_details", fake_api)
+    monkeypatch.setattr(lei_lookup, "_api_get", lambda *_a, **_k: {"data": []})
     results = _post_lei_details([
         "HWUPKR0MPOU8FGXBT394", "NOTANLEI", "ZZZZZZZZZZZZZZZZZZ00", "815600AD83B2B6317788",
     ])
@@ -220,3 +226,70 @@ def test_lei_details_falls_back_to_api_and_flags_bad_input(local_copy, monkeypat
     assert results[1]["error"] == "Not a valid LEI format"
     assert results[2]["error"] == "LEI not found in GLEIF"
     assert results[3]["region"] == "Europe"
+
+
+# ---------------------------------------------------------------------------
+# Issuer English names
+# ---------------------------------------------------------------------------
+
+def test_english_name_rules():
+    alt = [("Foo Ltd", "ALTERNATIVE_LANGUAGE_LEGAL_NAME", "en")]
+    assert gl.english_name("Foo GmbH", "de", alt) == "Foo Ltd"
+    assert gl.english_name("Foo Ltd", "EN", []) == "Foo Ltd"
+    # Trading names and non-English alternatives don't count
+    assert gl.english_name("Foo GmbH", "de", [("Foo", "TRADING_OR_OPERATING_NAME", "en")]) == ""
+    assert gl.english_name("Foo GmbH", "de", [("Foo", "ALTERNATIVE_LANGUAGE_LEGAL_NAME", "fr")]) == ""
+
+
+def test_local_records_carry_english_name(local_copy, monkeypatch):
+    monkeypatch.setattr(lei_lookup, "_api_get", lambda *_a, **_k: pytest.fail("API called"))
+    assert gl.has_english_names()
+    assert lei_lookup.english_names([
+        "o2rne8ibxp4r0td8pu41", "5299009N55YRQC69CN08", "YEH5ZCD6E441RHVHD759",
+    ]) == {
+        "O2RNE8IBXP4R0TD8PU41": "Societe Generale SA",
+        "5299009N55YRQC69CN08": "BMW Finance N.V.",
+        "YEH5ZCD6E441RHVHD759": "",
+    }
+    assert gl.search_names("societe generale")[0]["english_name"] == "Societe Generale SA"
+    assert lei_lookup.validate_single_lei("O2RNE8IBXP4R0TD8PU41")["english_name"] == "Societe Generale SA"
+
+
+def test_english_names_api_fallback(local_copy, monkeypatch):
+    calls = []
+
+    def fake_api(url, params, **_k):
+        calls.append(params["filter[lei]"])
+        return {"data": [{"attributes": {"lei": "HWUPKR0MPOU8FGXBT394", "entity": {
+            "legalName": {"name": "Apple Inc.", "language": "en"}, "otherNames": [],
+        }}}]}
+
+    monkeypatch.setattr(lei_lookup, "_api_get", fake_api)
+    names = lei_lookup.english_names(["HWUPKR0MPOU8FGXBT394", "ZZZZZZZZZZZZZZZZZZ00", "bad"])
+    assert names == {"HWUPKR0MPOU8FGXBT394": "Apple Inc.", "ZZZZZZZZZZZZZZZZZZ00": "", "BAD": ""}
+    assert calls == ["HWUPKR0MPOU8FGXBT394,ZZZZZZZZZZZZZZZZZZ00"] or calls == [
+        "ZZZZZZZZZZZZZZZZZZ00,HWUPKR0MPOU8FGXBT394"]
+    lei_lookup.english_names(["HWUPKR0MPOU8FGXBT394"])
+    assert len(calls) == 1  # memoised
+
+
+def test_download_latest_rebuilds_old_schema(local_copy, monkeypatch):
+    conn = __import__("sqlite3").connect(gl._current_db_path())
+    conn.execute("DELETE FROM meta WHERE key = 'schema_version'")
+    conn.commit()
+    conn.close()
+    _fake_latest(monkeypatch, "lei2.csv.zip", "isin.zip")
+    monkeypatch.setattr(gl, "_download", lambda url, dest, log: dest)
+    assert gl.download_latest(log=lambda _m: None) is not None
+
+
+def test_isin_lookup_and_lei_details_include_english_name(local_copy, monkeypatch):
+    from fastapi.testclient import TestClient
+    from backend.main import app
+
+    monkeypatch.setattr(lei_lookup, "_api_get", lambda *_a, **_k: pytest.fail("API called"))
+    client = TestClient(app)
+    isin = client.get("/api/isin-lookup", params={"isins": "DE0005190003"}).json()["results"]
+    assert (isin[0]["lei"], isin[0]["english_name"], isin[0]["region"]) == (
+        "YEH5ZCD6E441RHVHD759", "", "Europe")
+    assert _post_lei_details(["O2RNE8IBXP4R0TD8PU41"])[0]["english_name"] == "Societe Generale SA"

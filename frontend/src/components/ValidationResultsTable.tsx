@@ -60,6 +60,7 @@ export default function ValidationResultsTable({ rows }: Props) {
           <tr>
             <th className="vcol-entity">Entity Name</th>
             <th className="vcol-lei">Provided LEI</th>
+            <th className="vcol-english">Issuer English Name</th>
             <th className="vcol-estatus">Entity Status</th>
             <th className="vcol-rstatus">Reg. Status</th>
             <th className="vcol-flag">Flag</th>
@@ -96,6 +97,7 @@ export default function ValidationResultsTable({ rows }: Props) {
               >
                 {cell(row, 'entity', 'vcol-entity', row.entity_name)}
                 {cell(row, 'lei', 'vcol-lei', row.provided_lei)}
+                {cell(row, 'english', 'vcol-english', row.english_name ?? '')}
                 {cell(row, 'estatus', 'vcol-estatus', row.entity_status)}
                 {cell(row, 'rstatus', 'vcol-rstatus', row.registration_status)}
                 <div className="virtual-cell vcol-flag validation-flag">

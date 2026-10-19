@@ -37,10 +37,10 @@ function detectIsinColumn(headers: string[], rows: string[][]): string {
 }
 
 function resultsToCsv(results: IsinResult[]): string {
-  const header = 'ISIN,LEI,Legal Entity Name,Country,Entity Status,Registration Status,Error';
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const header = 'ISIN,LEI,Name of Issuer,Issuer English Name,Country of Issuer,Region,Entity Status,Registration Status,Error';
+  const escape = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
   const rows = results.map((r) =>
-    [r.isin, r.lei, r.legal_name, r.country, r.entity_status, r.registration_status, r.error]
+    [r.isin, r.lei, r.legal_name, r.english_name ?? '', r.country, r.region, r.entity_status, r.registration_status, r.error]
       .map(escape)
       .join(','),
   );
@@ -136,7 +136,7 @@ export default function IsinLookupSection() {
       } catch {
         batch.forEach((isin) =>
           accumulated.push({
-            isin, lei: '', legal_name: '', country: '',
+            isin, lei: '', legal_name: '', country: '', region: '',
             entity_status: '', registration_status: '',
             error: 'Request failed',
           }),
@@ -315,10 +315,11 @@ export default function IsinLookupSection() {
               <tr>
                 <th>ISIN</th>
                 <th>LEI</th>
-                <th>Legal Entity Name</th>
-                <th>Country</th>
-                <th>Entity Status</th>
-                <th>Registration Status</th>
+                <th>Name of Issuer</th>
+                <th>Issuer English Name</th>
+                <th>Country of Issuer</th>
+                <th>Region</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -327,9 +328,10 @@ export default function IsinLookupSection() {
                   <td className="mono">{r.isin}</td>
                   <td className="mono">{r.lei}</td>
                   <td>{r.legal_name}</td>
+                  <td>{r.english_name}</td>
                   <td>{r.country}</td>
-                  <td>{r.entity_status}</td>
-                  <td>{r.registration_status}</td>
+                  <td>{r.region}</td>
+                  <td>{`${r.entity_status} / ${r.registration_status}`}</td>
                 </tr>
               ))}
             </tbody>
