@@ -314,6 +314,54 @@ def test_isin_lookup_and_lei_details_include_english_name(local_copy, monkeypatc
 # Sector classification
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def no_sector_overrides(tmp_path, monkeypatch):
+    """Keep tests independent of the real curated list."""
+    import backend.sector as sector
+
+    monkeypatch.setattr(sector, "OVERRIDES_PATH", str(tmp_path / "no_overrides.csv"))
+
+
+def test_sector_overrides(tmp_path, monkeypatch, caplog):
+    import os
+    import backend.sector as sector
+
+    path = tmp_path / "overrides.csv"
+    path.write_text(
+        "LEI,Sector,Name\n"
+        "549300nykk9mwm7ggw15,Bank,ING GROEP N.V.\n"
+        "NOTANLEI,Bank,Bad LEI\n"
+        "BFM8T61CT2L1QCEMIK50,Banks,Unknown sector\n",
+        encoding="utf-8")
+    monkeypatch.setattr(sector, "OVERRIDES_PATH", str(path))
+
+    assert sector.classify("GENERAL", "", ["ING GROEP N.V."], lei="549300NYKK9MWM7GGW15") == (
+        "Bank", "Curated list")
+    assert sector.classify("GENERAL", "", ["UBS AG"], lei="BFM8T61CT2L1QCEMIK50")[0] == "Other"
+    assert "line 3 skipped" in caplog.text and "line 4 skipped" in caplog.text
+
+    # Edits are picked up without a restart
+    path.write_text("LEI,Sector,Name\nBFM8T61CT2L1QCEMIK50,Bank,UBS AG\n", encoding="utf-8")
+    os.utime(path, (1, 1))
+    assert sector.classify("GENERAL", "", ["UBS AG"], lei="BFM8T61CT2L1QCEMIK50")[0] == "Bank"
+    assert sector.classify("GENERAL", "", ["ING GROEP N.V."], lei="549300NYKK9MWM7GGW15")[0] == "Other"
+
+
+def test_shipped_sector_overrides_are_valid():
+    import csv
+    import os
+    import re
+    from backend.sector import SECTORS
+
+    path = os.path.join(os.path.dirname(gl.__file__), "data", "sector_overrides.csv")
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert rows
+    leis = [r["LEI"] for r in rows]
+    assert len(leis) == len(set(leis))
+    assert all(re.fullmatch(r"[A-Z0-9]{18}[0-9]{2}", lei) for lei in leis)
+    assert all(r["Sector"] in SECTORS for r in rows)
+
 def test_sector_rules():
     from backend.sector import classify
 

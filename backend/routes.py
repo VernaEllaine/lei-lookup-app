@@ -960,7 +960,7 @@ async def lei_details(payload: dict):
             row["sector"], row["sector_basis"] = classify_sector(
                 rec.get("category", ""), rec.get("subcategory", ""),
                 [row["legal_name"], row.get("english_name", "")],
-                has_bic=bool(rec.get("bics")),
+                has_bic=bool(rec.get("bics")), lei=row["lei"],
             )
     return {"results": results}
 
