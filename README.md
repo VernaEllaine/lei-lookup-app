@@ -29,7 +29,7 @@ Open `http://localhost:5173`
 
 ## Local GLEIF Copy (optional, recommended)
 
-Load the full GLEIF golden copy (~3.5M LEI records) and the ISIN-LEI mapping into a local SQLite database so lookups don't wait on the rate-limited GLEIF API:
+Load the full GLEIF golden copy (~3.5M LEI records) and the ISIN-LEI and LEI-BIC mappings into a local SQLite database so lookups don't wait on the rate-limited GLEIF API:
 
 ```bash
 python -m backend.gleif_local load     # downloads ~510 MB, builds the DB
@@ -41,6 +41,7 @@ When a local copy is loaded:
 - **Name lookups** use SQLite FTS5 full-text search over legal, other and transliterated names of ACTIVE/ISSUED entities, then run through the same confidence scoring as before. They skip the global rate limiter.
 - **LEI validation** and **ISIN lookups** read the local tables and only call the API for LEIs/ISINs that aren't in the local copy (e.g. issued after it was published).
 - Every tab's results and exports include an **Issuer English Name**: GLEIF's English alternative-language legal name, else the legal name when GLEIF tags it as English, else blank. LEIs missing from the local copy get it from the API.
+- The **Issuer Details** tab adds a **Sector** (rules in `backend/sector.py`, first match wins): **SPS** for international organisations and central/state/local government entities (`EntityCategory`/`EntitySubCategory`); then, for `GENERAL` entities, **Bank**, **Project Finance** or **Utilities** when the legal or English name contains one of the sector's keywords; otherwise **Other**. A registered BIC is noted in the **Sector Basis** but doesn't make an entity a bank by itself, since most BIC holders are corporates.
 - `GET /api/gleif-local/status` reports what is loaded; the app header shows the publish date (amber when older than 3 days) or "Live GLEIF API" when no copy is loaded.
 
 GLEIF republishes the golden copy three times a day; rerun `load` to refresh. `load` does nothing if the latest published files are already loaded (`--force` rebuilds anyway). It can run while the server is up — each load writes a new `gleif-<timestamp>.db` and switches the `current` pointer, and older files are removed on the next load.

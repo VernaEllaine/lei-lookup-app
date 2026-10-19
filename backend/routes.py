@@ -27,6 +27,7 @@ from backend.models import (
     ValidateLeiResponse,
 )
 from backend.regions import region_for
+from backend.sector import classify as classify_sector
 from backend.worker import run_lookup
 from backend.validation_worker import run_validation
 
@@ -896,14 +897,18 @@ def _api_lei_details(leis: list[str]) -> dict[str, dict]:
                 "country": entity.get("legalAddress", {}).get("country", ""),
                 "status": entity.get("status", ""),
                 "registration_status": attrs.get("registration", {}).get("status", ""),
+                "category": entity.get("category") or "",
+                "subcategory": entity.get("subCategory") or "",
+                "bics": attrs.get("bic") or [],
             }
     return found
 
 
 @router.post("/lei-details")
 async def lei_details(payload: dict):
-    """Return issuer name, country (ISO alpha-2, legal address) and region
-    for each LEI in ``{"leis": [...]}``, in the order given.
+    """Return issuer name, country (ISO alpha-2, legal address), region and
+    sector (see backend.sector) for each LEI in ``{"leis": [...]}``, in the
+    order given.
 
     Reads the local GLEIF copy; LEIs missing from it are fetched from the API.
     """
@@ -914,7 +919,7 @@ async def lei_details(payload: dict):
     for lei in valid:
         rec = gleif_local.get_record(lei)
         if rec is not None:
-            details[lei] = rec
+            details[lei] = {**rec, "bics": gleif_local.bics_for_lei(lei)}
 
     api_error = ""
     missing = sorted(valid - details.keys())
@@ -941,9 +946,23 @@ async def lei_details(payload: dict):
             "region": region_for(country),
             "entity_status": rec["status"] if rec else "",
             "registration_status": rec["registration_status"] if rec else "",
+            "sector": "",
+            "sector_basis": "",
             "error": error,
         })
-    return {"results": await _add_english_names(results)}
+    results = await _add_english_names(results)
+
+    # Classify after English names are filled in, since the name rules
+    # check both the legal and the English name.
+    for row in results:
+        rec = details.get(row["lei"])
+        if rec is not None and not row["error"]:
+            row["sector"], row["sector_basis"] = classify_sector(
+                rec.get("category", ""), rec.get("subcategory", ""),
+                [row["legal_name"], row.get("english_name", "")],
+                has_bic=bool(rec.get("bics")),
+            )
+    return {"results": results}
 
 
 @router.get("/gleif-local/status")

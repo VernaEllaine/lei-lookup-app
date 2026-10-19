@@ -174,6 +174,8 @@ export interface LeiDetail {
   region: string;    // "Europe" | "Global" | ""
   entity_status: string;
   registration_status: string;
+  sector?: string;        // "SPS" | "Bank" | "Project Finance" | "Utilities" | "Other" | ""
+  sector_basis?: string;  // Which rule set the sector
   error: string;
 }
 

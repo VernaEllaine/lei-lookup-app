@@ -1,4 +1,4 @@
-"""Local copy of the GLEIF golden copy (LEI records) and ISIN-LEI mapping.
+"""Local copy of the GLEIF golden copy (LEI records) and ISIN-LEI and BIC-LEI mappings.
 
 Loading the full files into SQLite lets name searches, LEI validation and
 ISIN lookups run locally instead of going through the rate-limited GLEIF API.
@@ -10,7 +10,7 @@ connections switch to the new file on their next query.
 Usage:
     python -m backend.gleif_local load            # download latest + build (skipped if already loaded)
     python -m backend.gleif_local load --force    # rebuild even if already loaded
-    python -m backend.gleif_local load --lei-zip path/to/lei2.csv.zip --isin-zip path/to/isin.zip
+    python -m backend.gleif_local load --lei-zip path/to/lei2.csv.zip --isin-zip path/to/isin.zip [--bic-zip path/to/bic.zip]
     python -m backend.gleif_local status
 """
 
@@ -45,10 +45,11 @@ DATA_DIR = _default_data_dir()
 
 GOLDEN_COPY_LATEST = "https://goldencopy.gleif.org/api/v2/golden-copies/publishes/latest"
 ISIN_LATEST = "https://mapping.gleif.org/api/v2/isin-lei/latest"
+BIC_LATEST = "https://mapping.gleif.org/api/v2/bic-lei/latest"
 
 # Bump when the DB layout changes so the next load rebuilds even if the
 # published files haven't changed.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # How many FTS hits to re-rank before returning the top results
 _CANDIDATE_POOL = 300
@@ -114,11 +115,16 @@ def _fts_query(text: str) -> str | None:
 
 
 def _record(row: sqlite3.Row) -> dict:
+    keys = row.keys()
     return {
         "lei": row["lei"],
         "legal_name": row["legal_name"],
         # DBs built before SCHEMA_VERSION 2 lack this column
-        "english_name": row["english_name"] if "english_name" in row.keys() else "",
+        "english_name": row["english_name"] if "english_name" in keys else "",
+        # ...and before SCHEMA_VERSION 3, these
+        "category": row["category"] if "category" in keys else "",
+        "subcategory": row["subcategory"] if "subcategory" in keys else "",
+        "legal_form": row["legal_form"] if "legal_form" in keys else "",
         "jurisdiction": row["jurisdiction"],
         "country": row["country"],
         "status": row["entity_status"],
@@ -174,6 +180,20 @@ def get_record(lei: str) -> dict | None:
         "SELECT * FROM entities WHERE lei = ?", (lei.strip().upper(),)
     ).fetchone()
     return _record(row) if row else None
+
+
+def bics_for_lei(lei: str) -> list[str]:
+    """Return the BICs mapped to *lei* in the local BIC-LEI file."""
+    conn = _get_conn()
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT bic FROM bic_map WHERE lei = ?", (lei.strip().upper(),)
+        ).fetchall()
+    except sqlite3.OperationalError:  # DB built before SCHEMA_VERSION 3
+        return []
+    return [r["bic"] for r in rows]
 
 
 def leis_for_isin(isin: str) -> list[str]:
@@ -263,7 +283,10 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             jurisdiction TEXT NOT NULL DEFAULT '',
             country TEXT NOT NULL DEFAULT '',
             entity_status TEXT NOT NULL DEFAULT '',
-            registration_status TEXT NOT NULL DEFAULT ''
+            registration_status TEXT NOT NULL DEFAULT '',
+            category TEXT NOT NULL DEFAULT '',
+            subcategory TEXT NOT NULL DEFAULT '',
+            legal_form TEXT NOT NULL DEFAULT ''
         );
         CREATE VIRTUAL TABLE name_fts USING fts5(
             name, entity_id UNINDEXED,
@@ -273,6 +296,11 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             isin TEXT NOT NULL,
             lei TEXT NOT NULL,
             PRIMARY KEY (isin, lei)
+        ) WITHOUT ROWID;
+        CREATE TABLE bic_map (
+            lei TEXT NOT NULL,
+            bic TEXT NOT NULL,
+            PRIMARY KEY (lei, bic)
         ) WITHOUT ROWID;
         CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
     """)
@@ -285,7 +313,7 @@ def _load_entities(conn: sqlite3.Connection, lei_zip: str, log) -> int:
     count = 0
 
     def flush() -> None:
-        conn.executemany("INSERT INTO entities VALUES (?,?,?,?,?,?,?,?)", entities)
+        conn.executemany("INSERT INTO entities VALUES (?,?,?,?,?,?,?,?,?,?,?)", entities)
         conn.executemany("INSERT INTO name_fts (name, entity_id) VALUES (?,?)", names)
         entities.clear()
         names.clear()
@@ -303,6 +331,9 @@ def _load_entities(conn: sqlite3.Connection, lei_zip: str, log) -> int:
             row["Entity.LegalAddress.Country"],
             entity_status,
             reg_status,
+            row.get("Entity.EntityCategory") or "",
+            row.get("Entity.EntitySubCategory") or "",
+            row.get("Entity.LegalForm.EntityLegalFormCode") or "",
         ))
         # Lookups only ever return ACTIVE/ISSUED entities, so only those
         # need to be searchable by name.
@@ -323,24 +354,40 @@ def _load_entities(conn: sqlite3.Connection, lei_zip: str, log) -> int:
     return count
 
 
-def _load_isins(conn: sqlite3.Connection, isin_zip: str, log) -> int:
-    reader = csv.reader(_open_zipped_csv(isin_zip))
-    header = [h.strip().upper() for h in next(reader)]
-    lei_i, isin_i = header.index("LEI"), header.index("ISIN")
+def _load_mapping(conn: sqlite3.Connection, zip_path: str, table: str,
+                  columns: tuple[str, str]) -> int:
+    """Load a two-column GLEIF mapping file (e.g. LEI,ISIN) into *table*,
+    whose columns are in *columns* order."""
+    reader = csv.reader(_open_zipped_csv(zip_path))
+    header = [h.strip().lstrip("\ufeff").upper() for h in next(reader)]
+    idx = [header.index(c) for c in columns]
+    sql = f"INSERT OR IGNORE INTO {table} VALUES (?,?)"
     batch: list[tuple] = []
     count = 0
     for row in reader:
-        batch.append((row[isin_i].strip(), row[lei_i].strip()))
+        batch.append(tuple(row[i].strip().upper() for i in idx))
         count += 1
         if len(batch) >= _BATCH:
-            conn.executemany("INSERT OR IGNORE INTO isin_map VALUES (?,?)", batch)
+            conn.executemany(sql, batch)
             batch.clear()
-    conn.executemany("INSERT OR IGNORE INTO isin_map VALUES (?,?)", batch)
+    conn.executemany(sql, batch)
+    return count
+
+
+def _load_isins(conn: sqlite3.Connection, isin_zip: str, log) -> int:
+    count = _load_mapping(conn, isin_zip, "isin_map", ("ISIN", "LEI"))
     log(f"  {count:,} ISIN mappings loaded")
     return count
 
 
-def build(lei_zip: str, isin_zip: str | None, publish_date: str = "", log=print) -> str:
+def _load_bics(conn: sqlite3.Connection, bic_zip: str, log) -> int:
+    count = _load_mapping(conn, bic_zip, "bic_map", ("LEI", "BIC"))
+    log(f"  {count:,} BIC mappings loaded")
+    return count
+
+
+def build(lei_zip: str, isin_zip: str | None, publish_date: str = "", log=print,
+          bic_zip: str | None = None) -> str:
     """Build a new local DB from the given zip files and make it current."""
     os.makedirs(DATA_DIR, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
@@ -363,6 +410,10 @@ def build(lei_zip: str, isin_zip: str | None, publish_date: str = "", log=print)
     if isin_zip:
         log(f"Loading ISIN mappings from {os.path.basename(isin_zip)}")
         isin_count = _load_isins(conn, isin_zip, log)
+    bic_count = 0
+    if bic_zip:
+        log(f"Loading BIC mappings from {os.path.basename(bic_zip)}")
+        bic_count = _load_bics(conn, bic_zip, log)
 
     conn.executemany("INSERT INTO meta VALUES (?,?)", [
         ("publish_date", publish_date),
@@ -370,6 +421,8 @@ def build(lei_zip: str, isin_zip: str | None, publish_date: str = "", log=print)
         ("lei_count", str(lei_count)),
         ("isin_file", os.path.basename(isin_zip) if isin_zip else ""),
         ("isin_count", str(isin_count)),
+        ("bic_file", os.path.basename(bic_zip) if bic_zip else ""),
+        ("bic_count", str(bic_count)),
         ("loaded_at", time.strftime("%Y-%m-%d %H:%M:%S")),
         ("schema_version", str(SCHEMA_VERSION)),
     ])
@@ -410,11 +463,12 @@ def _download(url: str, dest: str, log) -> str:
     return dest
 
 
-def download_latest(log=print, force: bool = False) -> tuple[str, str, str] | None:
-    """Download the latest golden copy and ISIN mapping zips.
+def download_latest(log=print, force: bool = False) -> tuple[str, str, str, str | None] | None:
+    """Download the latest golden copy and ISIN and BIC mapping zips.
 
-    Returns (lei_zip_path, isin_zip_path, publish_date), or None when the
-    published files are the ones already loaded (unless *force*).
+    Returns (lei_zip_path, isin_zip_path, publish_date, bic_zip_path), or None
+    when the published files are the ones already loaded (unless *force*).
+    The BIC mapping is optional: if it can't be fetched, bic_zip_path is None.
     """
     import requests
 
@@ -425,10 +479,16 @@ def download_latest(log=print, force: bool = False) -> tuple[str, str, str] | No
     lei_url = publish["lei2"]["full_file"]["csv"]["url"]
     lei_name = lei_url.rsplit("/", 1)[-1]
     isin = requests.get(ISIN_LATEST, timeout=30).json()["data"]["attributes"]
+    try:
+        bic = requests.get(BIC_LATEST, timeout=30).json()["data"]["attributes"]
+    except Exception as exc:
+        log(f"BIC mapping unavailable, continuing without it: {exc}")
+        bic = None
 
     loaded = status()
     current = (
         (loaded.get("lei_file"), loaded.get("isin_file")) == (lei_name, isin["fileName"])
+        and (bic is None or loaded.get("bic_file") == bic["fileName"])
         and loaded.get("schema_version") == str(SCHEMA_VERSION)
     )
     if current and not force:
@@ -437,13 +497,19 @@ def download_latest(log=print, force: bool = False) -> tuple[str, str, str] | No
 
     lei_zip = _download(lei_url, os.path.join(downloads, lei_name), log)
     isin_zip = _download(isin["downloadLink"], os.path.join(downloads, isin["fileName"]), log)
+    bic_zip = None
+    if bic is not None:
+        try:
+            bic_zip = _download(bic["downloadLink"], os.path.join(downloads, bic["fileName"]), log)
+        except Exception as exc:
+            log(f"BIC mapping download failed, continuing without it: {exc}")
 
     # Only keep the files just used
     for old in glob.glob(os.path.join(downloads, "*.zip")):
-        if old not in (lei_zip, isin_zip):
+        if old not in (lei_zip, isin_zip, bic_zip):
             os.remove(old)
 
-    return lei_zip, isin_zip, publish["publish_date"]
+    return lei_zip, isin_zip, publish["publish_date"], bic_zip
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -454,6 +520,7 @@ def main(argv: list[str] | None = None) -> None:
     load = sub.add_parser("load", help="Download (or use given files) and build the local DB.")
     load.add_argument("--lei-zip", help="Golden copy LEI2 CSV zip (skips download).")
     load.add_argument("--isin-zip", help="ISIN-LEI mapping zip.")
+    load.add_argument("--bic-zip", help="LEI-BIC mapping zip.")
     load.add_argument("--publish-date", default="", help="Publish date to record with --lei-zip.")
     load.add_argument("--force", action="store_true", help="Rebuild even if already up to date.")
     sub.add_parser("status", help="Show what is loaded.")
@@ -466,11 +533,12 @@ def main(argv: list[str] | None = None) -> None:
 
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] gleif_local load", flush=True)
     if args.lei_zip:
-        build(args.lei_zip, args.isin_zip, args.publish_date)
+        build(args.lei_zip, args.isin_zip, args.publish_date, bic_zip=args.bic_zip)
     else:
         latest = download_latest(force=args.force)
         if latest is not None:
-            build(*latest)
+            lei_zip, isin_zip, publish_date, bic_zip = latest
+            build(lei_zip, isin_zip, publish_date, bic_zip=bic_zip)
 
 
 if __name__ == "__main__":
