@@ -2,7 +2,7 @@
 
 Rules (first match wins):
 
-1. SPS (special purpose sovereigns): EntityCategory INTERNATIONAL_ORGANIZATION,
+1. SPS (sovereigns and public sector): EntityCategory INTERNATIONAL_ORGANIZATION,
    or RESIDENT_GOVERNMENT_ENTITY with EntitySubCategory CENTRAL_GOVERNMENT,
    STATE_GOVERNMENT or LOCAL_GOVERNMENT.
 2. Banks: EntityCategory GENERAL and the legal or English name contains
